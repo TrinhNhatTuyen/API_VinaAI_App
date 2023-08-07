@@ -304,6 +304,40 @@ def capnhat_matkhau():
         msg = 'Không tìm thấy email trong cơ sở dữ liệu.'
         print(msg)
         return jsonify({'message': msg}), 404
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/account/post-fcm', methods=['POST'])
+def post_fcm():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    fcm = data.get('fcm')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+    # Từ Username lấy CustomerID trong bảng Customer
+    if "@" in ten_tai_khoan_email_sdt:
+        cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+    elif ten_tai_khoan_email_sdt.isdigit():
+        cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+    else:
+        cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+    results = cursor.fetchall()
+    customerid = results[0][0]
+    try:
+        cursor.execute("UPDATE Customer SET FCM = ? WHERE CustomerID = ?", fcm, customerid)
+        print(f"Đã update FCM cho User {ten_tai_khoan_email_sdt}")
+        conn.commit()
+    except:
+        msg = f"Lỗi! Không update được FCM cho User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 500
+            
 ####################################################################################################
 @app.route('/api/ads/banner-img', methods=['GET'])
 def banner():
@@ -917,6 +951,102 @@ def add_home_member():
     
 #---------------------------------------------------------------------------------------------------
 
+@app.route('/api/lock/delete-home-member', methods=['POST'])
+def delete_home_member():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    homeid = data.get('homeid')
+    ten_tai_khoan_email_sdt_member = data.get('username')
+    
+    print("homeid:", homeid, ' - ', type(homeid))
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt_member, ' - ', type(ten_tai_khoan_email_sdt_member))
+    
+    #---------------------------------------------------------------------------------------
+    try:
+        # Từ "ten_tai_khoan_email_sdt_member" lấy CustomerID của member trong bảng Customer
+        if "@" in ten_tai_khoan_email_sdt_member:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt_member)
+        elif ten_tai_khoan_email_sdt_member.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt_member)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt_member)
+        results = cursor.fetchall()
+        member_id = results[0][0]
+    except:
+        msg = f"Lỗi! Không lấy được CustomerID của Member {ten_tai_khoan_email_sdt_member}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    #---------------------------------------------------------------------------------------
+    try:
+        # Xóa quyền
+        cursor.execute("DELETE FROM HomeMember WHERE HomeMemberID = ? AND HomeID = ?", (member_id, homeid))
+        conn.commit()
+        msg = f"Đã xóa User {ten_tai_khoan_email_sdt_member} khỏi căn hộ {homeid}"
+        print(msg)
+        return jsonify({'message': msg}), 200
+    except:
+        msg = f"Lỗi! Không xóa được User {ten_tai_khoan_email_sdt_member} khỏi căn hộ {homeid}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/lock/home-member-list', methods=['POST'])
+def homememberlist():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    homeid = data.get('homeid')
+    ten_tai_khoan_email_sdt = data.get('username')
+    
+    print("homeid:", homeid, ' - ', type(homeid))
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+
+    try:
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+        results = cursor.fetchall()
+        admin_id = results[0][0]
+    except:
+        msg = f"Lỗi! Không lấy được CustomerID của Admin {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    #---------------------------------------------------------------------------------------
+    try:
+        member_list = []
+        # Từ "homename" lấy HomeID của admin trong bảng CustomerHome
+        cursor.execute("SELECT HomeMemberID FROM HomeMember WHERE AdminID = ? AND HomeID = ?", (admin_id, homeid))
+        members = cursor.fetchall()
+        for member_id in members:
+            cursor.execute("SELECT Username, Email, Mobile, FullName FROM Customer WHERE CustomerID = ?", member_id[0])
+            result = cursor.fetchone()
+            member_list.append({
+                'Username': result[0],
+                'Email': result[1],
+                'Mobile': result[2],
+                'FullName': result[3]
+            })
+        print(f"Trả về list các User được thêm quyền của căn hộ {homeid}...")
+        return json.dumps(member_list), 200
+    except:
+        msg = f"Lỗi! Không lấy được list các User được thêm quyền của căn hộ {homeid}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    
+#---------------------------------------------------------------------------------------------------
+
 @app.route('/api/lock/updatehistory', methods=['POST'])
 def update_history():
     # Lấy thông tin từ yêu cầu POST
@@ -952,7 +1082,7 @@ def update_history():
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/lock/get-history', methods=['POST'])
-def update_history():
+def get_history():
     # Lấy thông tin từ yêu cầu POST
     data = request.get_json()
     
