@@ -165,6 +165,7 @@ def check_account():
         print('Sai key')
         return jsonify({'message': 'Sai key'}), 400
     
+    fcm = data.get('fcm')
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     password = data.get('password')
 
@@ -193,6 +194,24 @@ def check_account():
 
     if result[0] > 0:
         print('Tồn tại')
+        #------------------------------------ Post FCM ------------------------------------
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+        results = cursor.fetchall()
+        customerid = results[0][0]
+        try:
+            cursor.execute("UPDATE Customer SET FCM = ? WHERE CustomerID = ?", fcm, customerid)
+            print(f"Đã update FCM cho User {ten_tai_khoan_email_sdt}")
+            conn.commit()
+        except:
+            msg = f"Lỗi! Không update được FCM cho User {ten_tai_khoan_email_sdt}"
+            print(msg)
+            return jsonify({'message': msg}), 500
+        #-----------------------------------------------------------------------------------
         return jsonify({'Exist': 1}), 200
     else:
         print('Không tồn tại')
@@ -305,39 +324,6 @@ def capnhat_matkhau():
         print(msg)
         return jsonify({'message': msg}), 404
 
-#---------------------------------------------------------------------------------------------------
-
-@app.route('/api/account/post-fcm', methods=['POST'])
-def post_fcm():
-    data = request.get_json()
-    key = data.get('key')
-    if key not in api_keys:
-        print('Sai key')
-        return jsonify({'message': 'Sai key'}), 400
-    
-    fcm = data.get('fcm')
-    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
-    
-    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
-    
-    # Từ Username lấy CustomerID trong bảng Customer
-    if "@" in ten_tai_khoan_email_sdt:
-        cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
-    elif ten_tai_khoan_email_sdt.isdigit():
-        cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
-    else:
-        cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
-    results = cursor.fetchall()
-    customerid = results[0][0]
-    try:
-        cursor.execute("UPDATE Customer SET FCM = ? WHERE CustomerID = ?", fcm, customerid)
-        print(f"Đã update FCM cho User {ten_tai_khoan_email_sdt}")
-        conn.commit()
-    except:
-        msg = f"Lỗi! Không update được FCM cho User {ten_tai_khoan_email_sdt}"
-        print(msg)
-        return jsonify({'message': msg}), 500
-            
 ####################################################################################################
 @app.route('/api/ads/banner-img', methods=['GET'])
 def banner():
