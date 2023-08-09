@@ -598,18 +598,6 @@ def delete_home():
     homeid = data.get('homeid')
     print("homeid:", homeid, ' - ', type(homeid))
 
-    # # Lấy CustomerID
-    # try:
-    #     # Từ Username lấy CustomerID trong bảng Customer
-    #     cursor.execute("SELECT CustomerID FROM CustomerHome WHERE HomeID = ?", homeid)
-            
-    #     result = cursor.fetchone()
-    #     customerid = result[0]
-    # except:
-    #     msg = f"Lỗi! Không lấy được CustomerID của HomeID {homeid}"
-    #     print(msg)
-    #     return jsonify({'message': msg}), 404
-    #-----------------------------------------------------------------
     # Camera
     try:
         cursor.execute("DELETE FROM Camera WHERE HomeID = ?", homeid)
@@ -1132,6 +1120,91 @@ def get_history():
 
 #---------------------------------------------------------------------------------------------------
 
+# @app.route('/api/camera/add', methods=['POST'])
+# def add_camera():
+#     data = request.get_json()
+#     key = data.get('key')
+#     if key not in api_keys:
+#         print('Sai key')
+#         return jsonify({'message': 'Sai key'}), 400
+    
+#     homeid = data.get('homeid')
+#     camera_name = data.get('camera_name')
+#     cam_username = data.get('cam_username')
+#     cam_pass = data.get('cam_pass')
+#     rtsp = data.get('rtsp')
+#     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/camera/get-user-camera', methods=['POST'])
+def get_camera():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    ten_tai_khoan_email_sdt = data.get('username')
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    try:
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+        results = cursor.fetchall()
+        customer_id = results[0][0]
+    except:
+        msg = f"Lỗi! Không lấy được CustomerID của user {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    
+    # Lấy danh sách camera của User
+    camera_list = []
+    try:
+        cursor.execute(f"""SELECT lc.LockID, lc.CameraID
+                            FROM Lock_Camera lc
+                            JOIN CustomerHome ch ON lc.HomeID = ch.HomeID
+                            WHERE ch.CustomerID = '{customer_id}'
+                        """)
+        results = cursor.fetchall()
+        for i in results:
+            # Nếu cam không có khóa
+            if i.LockID==None:
+                cursor.execute("SELECT * FROM Camera WHERE CameraID = ?", i.CameraID)
+                cam = cursor.fetchone()
+                camera_list.append({
+                    'LockID': None,
+                    'LockName': None,
+                    'CameraName': cam.CameraName,
+                    'RTSP': cam.RTSP,
+                })
+            # Nếu cam có khóa
+            else:
+                cursor.execute("SELECT * FROM Lock WHERE LockID = ?", i.LockID)
+                lock = cursor.fetchone()
+                cursor.execute("SELECT * FROM Camera WHERE CameraID = ?", i.CameraID)
+                cam = cursor.fetchone()
+                
+                camera_list.append({
+                    'LockID': lock.LockID,
+                    'LockName': lock.LockName,
+                    'CameraName': cam.CameraName,
+                    'RTSP': cam.RTSP,
+                })
+                
+        print(f"Trả về danh sách camera của user {ten_tai_khoan_email_sdt}")
+        return json.dumps(camera_list), 200
+    except Exception as e:
+        msg = f"Lỗi! Không lấy được danh sách camera của user {ten_tai_khoan_email_sdt}"
+        print(msg)
+        print(e)
+
+#---------------------------------------------------------------------------------------------------
 @app.route('/api/lock/record', methods=['POST'])
 def get_lockrecord():
     data = request.get_json()
