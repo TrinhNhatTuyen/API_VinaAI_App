@@ -6,7 +6,7 @@ value = None
 random_banner = ''
 current_banner = ''
 banner_folder_path = 'banner'
-
+cam_img_folder_path = 'cam_img'
 #---------------------------------------------------------------------------------------------------
 def connect_to_database():
     max_retries = 5
@@ -1177,11 +1177,21 @@ def get_camera():
             if i.LockID==None:
                 cursor.execute("SELECT * FROM Camera WHERE CameraID = ?", i.CameraID)
                 cam = cursor.fetchone()
+                #--------------------------------------------------------------------------
+                cam_img = cam.CameraName
+                cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
+                img = cv2.imread(cam_img_path)
+                _, image_data = cv2.imencode('.jpg', img)
+                
+                # Chuyển đổi dữ liệu ảnh thành chuỗi base64
+                base64_image = base64.b64encode(image_data).decode("utf-8")
+                #--------------------------------------------------------------------------    
                 camera_list.append({
                     'LockID': None,
                     'LockName': None,
                     'CameraName': cam.CameraName,
                     'RTSP': cam.RTSP,
+                    'Hinh': base64_image,
                 })
             # Nếu cam có khóa
             else:
@@ -1189,12 +1199,21 @@ def get_camera():
                 lock = cursor.fetchone()
                 cursor.execute("SELECT * FROM Camera WHERE CameraID = ?", i.CameraID)
                 cam = cursor.fetchone()
+                #--------------------------------------------------------------------------
+                cam_img = cam.CameraName
+                cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
+                img = cv2.imread(cam_img_path)
+                _, image_data = cv2.imencode('.jpg', img)
                 
+                # Chuyển đổi dữ liệu ảnh thành chuỗi base64
+                base64_image = base64.b64encode(image_data).decode("utf-8")
+                #--------------------------------------------------------------------------             
                 camera_list.append({
                     'LockID': lock.LockID,
                     'LockName': lock.LockName,
                     'CameraName': cam.CameraName,
                     'RTSP': cam.RTSP,
+                    'Hinh': base64_image,
                 })
                 
         print(f"Trả về danh sách camera của user {ten_tai_khoan_email_sdt}")
@@ -1204,6 +1223,31 @@ def get_camera():
         print(msg)
         print(e)
 
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/camera/get-img-camera', methods=['POST'])
+def get_img_camera():
+    
+    data = request.get_json()
+    rtsp = data.get('rtsp')
+    print("rtsp:", rtsp, ' - ', type(rtsp))
+    
+    # Đường dẫn đầy đủ tới tệp tin ảnh
+    image_path = os.path.join(banner_folder_path, random_banner)
+
+    # Đọc nội dung tệp tin ảnh
+    # with open(image_path, "rb") as image_file:
+    #     image_data = image_file.read()
+    
+    img = cv2.imread(image_path)
+    _, image_data = cv2.imencode('.jpg', img)
+    
+    # Chuyển đổi dữ liệu ảnh thành chuỗi base64
+    base64_image = base64.b64encode(image_data).decode("utf-8")
+
+    # Trả về chuỗi base64 cho app
+    print("Vừa trả về chuỗi base64")
+    return Response(base64_image, mimetype='text/plain')
 #---------------------------------------------------------------------------------------------------
 @app.route('/api/lock/record', methods=['POST'])
 def get_lockrecord():
