@@ -737,9 +737,9 @@ def lockinfo():
         msg = f"Lỗi! Không lấy được CustomerID của User {ten_tai_khoan_email_sdt}"
         print(msg)
         return jsonify({'message': msg}), 404
+    
     try:
-
-        # Lấy thông tin khóa
+        # Lấy thông tin khóa của User
         cursor.execute("SELECT LockID, LockName, LockStatus FROM Lock WHERE HomeID = ?", homeid)
         results = cursor.fetchall()
         # Chuyển danh sách các tuple thành danh sách các dictionary
@@ -756,6 +756,7 @@ def lockinfo():
         return json.dumps(lock_info_list), 200
     except:
         try:
+            # Lấy thông tin khóa của người khác mà User được thêm
             cursor.execute("SELECT AdminID FROM HomeMember WHERE HomeMemberID = ? AND HomeID = ?", (customerid, homeid))
             if cursor.fetchall():
                 print(f"Đây là căn hộ được phân quyền bởi User {cursor.fetchall()[0][0]}")
