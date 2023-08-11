@@ -1167,10 +1167,16 @@ def get_camera():
     # Lấy danh sách camera của User
     camera_list = []
     try:
+        # cursor.execute(f"""SELECT lc.LockID, lc.CameraID
+        #                     FROM Lock_Camera lc
+        #                     JOIN CustomerHome ch ON lc.HomeID = ch.HomeID
+        #                     WHERE ch.CustomerID = '{customer_id}'
+        #                 """)
         cursor.execute(f"""SELECT lc.LockID, lc.CameraID
                             FROM Lock_Camera lc
                             JOIN CustomerHome ch ON lc.HomeID = ch.HomeID
-                            WHERE ch.CustomerID = '{customer_id}'
+                            JOIN HomeMember hm ON lc.HomeID = hm.HomeID
+                            WHERE ch.CustomerID = {customer_id} OR hm.HomeMemberID = {customer_id}
                         """)
         results = cursor.fetchall()
         for i in results:
