@@ -1070,25 +1070,35 @@ def update_history():
         return jsonify({'message': 'Sai key'}), 400
 
     # Lấy dữ liệu từ request
+    username = data.get('username')
     lock_id = data.get('lock_id')
-    history_description = data.get('history_description')
     history_code = data.get('history_code')
-    history_date_str = data.get('history_date') # String -> "2023-07-21 15:30:00"
+    
+    current_datetime = datetime.datetime.now()
+    history_date_str = current_datetime.strftime("%Y-%m-%d %H:%M:%S") # String -> "2023-07-21 15:30:00"
 
+    # Xác định HistoryDescription
+    if history_code==0:
+        history_description = "Mở khóa thành công"
+    else:
+        cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", history_code)
+        history_description = "Lỗi: " + cursor.fetchone().Description
+        
     # Chuyển đổi định dạng datetime
     try:
-        history_date = datetime.strptime(history_date_str, "%Y-%m-%d %H:%M:%S")
+        history_date = datetime.datetime.strptime(history_date_str, "%Y-%m-%d %H:%M:%S")
     except ValueError:
         msg = "Invalid HistoryDate format. It should be in format 'YYYY-MM-DD HH:MM:SS'"
         print(msg)
         return jsonify({"error": msg}), 400
 
     # Thêm dữ liệu vào bảng 'LockHistory' trong CSDL
-    cursor.execute("INSERT INTO LockHistory (LockID, HistoryDescription, HistoryCode, HistoryDate) VALUES (?, ?, ?, ?)", 
-                   (lock_id, history_description, history_code, history_date))
+    cursor.execute("INSERT INTO LockHistory (Username, LockID, HistoryDescription, HistoryCode, HistoryDate) VALUES (?, ?, ?, ?, ?)", 
+                   (username, lock_id, history_description, history_code, history_date))
     conn.commit()
-
-    return jsonify({"message": "LockHistory updated successfully"}), 201
+    msg = "LockHistory updated successfully"
+    print(msg)
+    return jsonify({"message": msg}), 201
 
 #---------------------------------------------------------------------------------------------------
 
@@ -1106,13 +1116,14 @@ def get_history():
     lock_id = data.get('lock_id')
     history_list = []
     try:
-        cursor.execute("SELECT HistoryDescription, HistoryCode, HistoryDate FROM LockHistory WHERE LockID = ?", lock_id)
+        cursor.execute("SELECT Username, HistoryDescription, HistoryDate FROM LockHistory WHERE LockID = ?", lock_id)
         history = cursor.fetchall()
         for i in history:
             history_list.append({
-                'HistoryDescription': i[0],
-                'HistoryCode': i[1],
-                'HistoryDate': i[2].strftime("%Y-%m-%d %H:%M:%S"),
+                'Username': i.Username,
+                'HistoryDescription': i.HistoryDescription,
+                # 'HistoryCode': i[2],
+                'HistoryDate': i.HistoryDate.strftime("%Y-%m-%d %H:%M:%S"),
             })
         print(f"Trả về lịch sử khóa {lock_id}")
         return json.dumps(history_list), 200
