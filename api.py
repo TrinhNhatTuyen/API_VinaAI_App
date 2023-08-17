@@ -72,7 +72,7 @@ def get_value():
 
 ####################################################################################################
 
-@app.route('/api/account/add', methods=['POST'])
+@app.route('/api/account/sign-up', methods=['POST'])
 def them_tai_khoan():
     data = request.get_json()
     key = data.get('key')
@@ -85,7 +85,7 @@ def them_tai_khoan():
     password = data.get('password')
     email = data.get('email')
     mobile = data.get('mobile')
-    #fullname = data.get('fullname')
+    fullname = data.get('fullname')
     #address = data.get('address')
     #district_id = data.get('district_id')
 
@@ -109,12 +109,8 @@ def them_tai_khoan():
         return jsonify({'message': msg}), 409
 
     # Thực thi truy vấn INSERT để thêm thông tin vào bảng Customer
-    #query_insert = f"INSERT INTO Customer (Username, Password, Email, Mobile, FullName, Address, DistrictID) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    #cursor.execute(query_insert, (username, password, email, mobile, fullname, address, district_id))
-    # query_insert = f"INSERT INTO Customer (CustomerID, Username, Password, Email, Mobile) VALUES (?, ?, ?, ?)"
-    # cursor.execute(query_insert, (customerid, username, password, email, mobile))
-    query_insert = f"INSERT INTO Customer (Username, Password, Email, Mobile) VALUES (?, ?, ?, ?)"
-    cursor.execute(query_insert, (username, password, email, mobile))
+    query_insert = f"INSERT INTO Customer (Username, Password, Email, Mobile, FullName) VALUES (?, ?, ?, ?, ?)"
+    cursor.execute(query_insert, (username, password, email, mobile, fullname))
     conn.commit()
 
     # Trả về phản hồi thành công
@@ -998,6 +994,17 @@ def delete_home_member():
         conn.commit()
         msg = f"Đã xóa User {ten_tai_khoan_email_sdt_member} khỏi căn hộ {homeid}"
         print(msg)
+    except:
+        msg = f"Lỗi! Không xóa được User {ten_tai_khoan_email_sdt_member} khỏi căn hộ {homeid}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    #---------------------------------------------------------------------------------------
+    try:
+        # Xóa PassCode
+        cursor.execute("DELETE FROM HomeMember WHERE HomeMemberID = ? AND HomeID = ?", (member_id, homeid))
+        conn.commit()
+        msg = f"Đã xóa User {ten_tai_khoan_email_sdt_member} khỏi căn hộ {homeid}"
+        print(msg)
         return jsonify({'message': msg}), 200
     except:
         msg = f"Lỗi! Không xóa được User {ten_tai_khoan_email_sdt_member} khỏi căn hộ {homeid}"
@@ -1056,7 +1063,7 @@ def homememberlist():
         print(msg)
         return jsonify({'message': msg}), 404
     
-#---------------------------------------------------------------------------------------------------
+####################################################################################################
 
 @app.route('/api/lock/updatehistory', methods=['POST'])
 def update_history():
@@ -1076,6 +1083,10 @@ def update_history():
     
     current_datetime = datetime.datetime.now()
     history_date_str = current_datetime.strftime("%Y-%m-%d %H:%M:%S") # String -> "2023-07-21 15:30:00"
+    
+    print("username:", username, ' - ', type(username))
+    print("lock_id:", lock_id, ' - ', type(lock_id))
+    print("history_code:", history_code, ' - ', type(history_code))
 
     # Xác định HistoryDescription
     if history_code==0:
@@ -1092,9 +1103,18 @@ def update_history():
         print(msg)
         return jsonify({"error": msg}), 400
 
+    # Lấy FullName từ Username
+    try:
+        cursor.execute("SELECT FullName FROM Customer WHERE Username = ?", username)
+        fullname = cursor.fetchone()[0]
+    except ValueError:
+        msg = f"User {username} không có FullName"
+        print(msg)
+        return jsonify({"error": msg}), 400
+    
     # Thêm dữ liệu vào bảng 'LockHistory' trong CSDL
-    cursor.execute("INSERT INTO LockHistory (Username, LockID, HistoryDescription, HistoryCode, HistoryDate) VALUES (?, ?, ?, ?, ?)", 
-                   (username, lock_id, history_description, history_code, history_date))
+    cursor.execute("INSERT INTO LockHistory (LockID, HistoryDescription, HistoryCode, HistoryDate, FullName, Username) VALUES (?, ?, ?, ?, ?, ?)", 
+                   (lock_id, history_description, history_code, history_date, fullname, username))
     conn.commit()
     msg = "LockHistory updated successfully"
     print(msg)
@@ -1116,7 +1136,7 @@ def get_history():
     lock_id = data.get('lock_id')
     history_list = []
     try:
-        cursor.execute("SELECT Username, HistoryDescription, HistoryDate FROM LockHistory WHERE LockID = ?", lock_id)
+        cursor.execute("SELECT Username, HistoryDescription, HistoryDate FROM LockHistory WHERE LockID = ? ORDER BY HistoryDate DESC", lock_id)
         history = cursor.fetchall()
         for i in history:
             history_list.append({
@@ -1130,7 +1150,145 @@ def get_history():
     except Exception as e:
         print(e)
 
+####################################################################################################
+
+@app.route('/api/lock/check-existed-passcode', methods=['POST'])
+def check_existed_passcode():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    lock_id = data.get('lockid')
+    username = data.get('username')
+    # passcode = data.get('passcode')
+    # passcode_name = data.get('passcode_name')
+    # access_token = data.get('access_token')
+    
+    print("lockid:", lock_id, ' - ', type(lock_id))
+    print("username:", username, ' - ', type(username))
+    # print("passcode:", passcode, ' - ', type(passcode))
+    
+    cursor.execute("SELECT * FROM PassCode WHERE LockID = ? AND Username = ? ", (lock_id, username))
+    results = cursor.fetchone()
+    if results:
+        return Response(results.PassCode, mimetype='text/plain')
+    else:
+        return Response("Đặt PassCode", mimetype='text/plain')
+    
 #---------------------------------------------------------------------------------------------------
+
+@app.route('/api/lock/add-custom-passcode', methods=['POST'])
+def add_custom_passcode():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    lock_id = data.get('lockid')
+    username = data.get('username')
+    passcode = data.get('passcode')
+    # passcode_name = data.get('passcode_name')
+    access_token = data.get('access_token')
+    
+    print("lockid:", lock_id, ' - ', type(lock_id))
+    print("username:", username, ' - ', type(username))
+    print("passcode:", passcode, ' - ', type(passcode))
+
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    url = "https://euapi.sciener.com/v3/keyboardPwd/add"
+
+    now = datetime.datetime.now()
+    new_time = now + datetime.timedelta(seconds=2)
+    timestamp = int(new_time.timestamp() * 1000)
+        
+    data = {
+        "clientId": '87ed6cf1e9274e65af6500193fd7dce8',
+        "accessToken": access_token,
+        "lockId": int(lock_id), #9399008,
+        "keyboardPwdType": 2,
+        "keyboardPwd": passcode,
+        "keyboardPwdName": "PassCode của " + username,
+        "addType": 2,
+        "date": timestamp,
+    }
+    response = requests.post(url, headers=headers, data=data)
+    if response.status_code == 200:
+        passcode_id =  response.json()['keyboardPwdId']
+        #-----------------------------------------
+        # Lấy được giá trị nhưng INSERT vào bảng lại không được ???
+        # cursor.execute(f"""
+        #                     SELECT C.Username, CH.HomeName, CH.HomeID
+        #                     FROM Lock L
+        #                     JOIN CustomerHome CH ON L.HomeID = CH.HomeID
+        #                     JOIN Customer C ON CH.CustomerID = C.CustomerID
+        #                     WHERE L.LockID = {lock_id}
+        #                 """)
+        #-----------------------------------------
+        # Từ LockID lấy ra Owner và HomeID
+        cursor.execute(f"""
+                            SELECT C.Username, CH.HomeName, CH.HomeID
+                            FROM Lock_Camera LC
+                            JOIN Lock L ON LC.LockID = L.LockID
+                            JOIN CustomerHome CH ON L.HomeID = CH.HomeID
+                            JOIN Customer C ON CH.CustomerID = C.CustomerID
+                            WHERE LC.LockID = {lock_id}
+                        """)
+        row = cursor.fetchone()
+        if row:
+            owner, homename, homeid = row
+        cursor.execute("INSERT INTO PassCode (LockID, PassCode, Username, PassCodeID, Owner, HomeName, HomeID) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                   (lock_id, passcode, username, passcode_id, owner, homename, homeid))
+        conn.commit()
+        msg = "Add new Passcode successfully"
+        print(msg)
+        return jsonify({"message": msg}), 201
+    else:
+        msg = "Failed"
+        print(msg)
+        return jsonify({"message": msg}), 500
+
+#---------------------------------------------------------------------------------------------------
+
+# @app.route('/api/lock/delete-passcode', methods=['POST'])
+# def delete_passcode():
+#     data = request.get_json()
+#     key = data.get('key')
+#     if key not in api_keys:
+#         print('Sai key')
+#         return jsonify({'message': 'Sai key'}), 400
+    
+#     lock_id = data.get('lockid')
+#     username = data.get('username')
+#     passcode = data.get('passcode')
+#     # passcode_name = data.get('passcode_name')
+#     access_token = data.get('access_token')
+    
+#     print("lockid:", lock_id, ' - ', type(lock_id))
+#     print("username:", username, ' - ', type(username))
+#     print("passcode:", passcode, ' - ', type(passcode))
+
+#     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+#     url = "https://euapi.sciener.com/v3/keyboardPwd/delete"
+
+#     now = datetime.datetime.now()
+#     new_time = now + datetime.timedelta(seconds=2)
+#     timestamp = int(new_time.timestamp() * 1000)
+        
+#     data = {
+#         "clientId": '87ed6cf1e9274e65af6500193fd7dce8',
+#         "accessToken": access_token,
+#         "lockId": int(lock_id), #9399008,
+#         # "keyboardPwdId": passcode_id,
+#         "deleteType": 2,
+#         "date": timestamp,
+#     }
+#     response = requests.post(url, headers=headers, data=data)
+#     if response.status_code == 200:
+#         print()
+####################################################################################################
 
 # @app.route('/api/camera/add', methods=['POST'])
 # def add_camera():
