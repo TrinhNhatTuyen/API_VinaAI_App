@@ -1218,43 +1218,40 @@ def add_custom_passcode():
     if response.status_code == 200:
         try:
             errcode = response.json()['errcode']
-            if errcode==0:
-                
-                passcode_id =  response.json()['keyboardPwdId']
-                #-----------------------------------------
-                # Lấy được giá trị nhưng INSERT vào bảng lại không được ???
-                # cursor.execute(f"""
-                #                     SELECT C.Username, CH.HomeName, CH.HomeID
-                #                     FROM Lock L
-                #                     JOIN CustomerHome CH ON L.HomeID = CH.HomeID
-                #                     JOIN Customer C ON CH.CustomerID = C.CustomerID
-                #                     WHERE L.LockID = {lock_id}
-                #                 """)
-                #-----------------------------------------
-                # Từ LockID lấy ra Owner và HomeID
-                cursor.execute(f"""
-                                    SELECT C.Username, CH.HomeName, CH.HomeID
-                                    FROM Lock_Camera LC
-                                    JOIN Lock L ON LC.LockID = L.LockID
-                                    JOIN CustomerHome CH ON L.HomeID = CH.HomeID
-                                    JOIN Customer C ON CH.CustomerID = C.CustomerID
-                                    WHERE LC.LockID = {lock_id}
-                                """)
-                row = cursor.fetchone()
-                if row:
-                    owner, homename, homeid = row
-                cursor.execute("INSERT INTO PassCode (LockID, PassCode, Username, PassCodeID, Owner, HomeName, HomeID) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                        (lock_id, passcode, username, passcode_id, owner, homename, homeid))
-                conn.commit()
-                msg = "Đặt PassCode thành công!"
-                print(msg)
-                return Response(msg, mimetype='text/plain')
-            else:  
-                cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
-                error = cursor.fetchone().Description
-                return Response(error, mimetype='text/plain')
-        except Exception as e:
-            print(e)
+            cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
+            error = cursor.fetchone().Description
+            print(error)
+            return Response(error, mimetype='text/plain')
+        except:
+            passcode_id =  response.json()['keyboardPwdId']
+            #-----------------------------------------
+            # Lấy được giá trị nhưng INSERT vào bảng lại không được ???
+            # cursor.execute(f"""
+            #                     SELECT C.Username, CH.HomeName, CH.HomeID
+            #                     FROM Lock L
+            #                     JOIN CustomerHome CH ON L.HomeID = CH.HomeID
+            #                     JOIN Customer C ON CH.CustomerID = C.CustomerID
+            #                     WHERE L.LockID = {lock_id}
+            #                 """)
+            #-----------------------------------------
+            # Từ LockID lấy ra Owner và HomeID
+            cursor.execute(f"""
+                                SELECT C.Username, CH.HomeName, CH.HomeID
+                                FROM Lock_Camera LC
+                                JOIN Lock L ON LC.LockID = L.LockID
+                                JOIN CustomerHome CH ON L.HomeID = CH.HomeID
+                                JOIN Customer C ON CH.CustomerID = C.CustomerID
+                                WHERE LC.LockID = {lock_id}
+                            """)
+            row = cursor.fetchone()
+            if row:
+                owner, homename, homeid = row
+            cursor.execute("INSERT INTO PassCode (LockID, PassCode, Username, PassCodeID, Owner, HomeName, HomeID) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                    (lock_id, passcode, username, passcode_id, owner, homename, homeid))
+            conn.commit()
+            msg = "Đặt PassCode thành công!"
+            print(msg)
+            return Response(msg, mimetype='text/plain')
     else:
         msg = "Failed"
         print(msg)
