@@ -504,7 +504,7 @@ def homeinfo():
         print('Sai key')
         return jsonify({'message': 'Sai key'}), 400
     
-    ten_tai_khoan_email_sdt = data.get('username')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
     home_info_list = []
@@ -658,7 +658,7 @@ def addhome():
         return jsonify({'message': 'Sai key'}), 400
     
     try:
-        ten_tai_khoan_email_sdt = data.get('username')
+        ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
         homename = data.get('homename')
         homeaddress = data.get('homeaddress')
         districtid = data.get('districtid')
@@ -709,7 +709,7 @@ def lockinfo():
         print('Sai key')
         return jsonify({'message': 'Sai key'}), 400
     
-    ten_tai_khoan_email_sdt = data.get('username')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     # homename = data.get('homename')
     homeid = data.get('homeid')
 
@@ -826,7 +826,7 @@ def addlock():
     
     lockid = data.get('lockid')
     lockname = data.get('lockname')
-    ten_tai_khoan_email_sdt = data.get('username')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     homename = data.get('homename')
 
     print("lockid:", lockid, ' - ', type(lockid))
@@ -888,11 +888,11 @@ def add_home_member():
         print('Sai key')
         return jsonify({'message': 'Sai key'}), 400
     
-    homemember = data.get('homemember')
-    ten_tai_khoan_email_sdt = data.get('username')
+    homemember = data.get('ten_tai_khoan_email_sdt_homemember')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     homename = data.get('homename')
     
-    print("homemember:", homemember, ' - ', type(homemember))
+    print("ten_tai_khoan_email_sdt_homemember:", homemember, ' - ', type(homemember))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     print("homename:", homename, ' - ', type(homename))
     
@@ -967,24 +967,21 @@ def delete_home_member():
         return jsonify({'message': 'Sai key'}), 400
     
     homeid = data.get('homeid')
-    ten_tai_khoan_email_sdt_member = data.get('username')
+    sdt = data.get('sdt')
+    access_token = data.get('access_token')
     
     print("homeid:", homeid, ' - ', type(homeid))
-    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt_member, ' - ', type(ten_tai_khoan_email_sdt_member))
+    print("sdt:", sdt, ' - ', type(sdt))
     
     #---------------------------------------------------------------------------------------
     try:
-        # Từ "ten_tai_khoan_email_sdt_member" lấy CustomerID của member trong bảng Customer
-        if "@" in ten_tai_khoan_email_sdt_member:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt_member)
-        elif ten_tai_khoan_email_sdt_member.isdigit():
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt_member)
-        else:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt_member)
-        results = cursor.fetchall()
-        member_id = results[0][0]
+        # Từ "sdt" lấy CustomerID của member trong bảng Customer
+        cursor.execute("SELECT CustomerID, Username FROM Customer WHERE Mobile = ?", sdt)
+        results = cursor.fetchone()
+        member_id = results.CustomerID
+        username = results.Username
     except:
-        msg = f"Lỗi! Không lấy được CustomerID của Member {ten_tai_khoan_email_sdt_member}"
+        msg = f"Lỗi! Không lấy được CustomerID của Member {sdt}"
         print(msg)
         return jsonify({'message': msg}), 404
     #---------------------------------------------------------------------------------------
@@ -992,24 +989,63 @@ def delete_home_member():
         # Xóa quyền
         cursor.execute("DELETE FROM HomeMember WHERE HomeMemberID = ? AND HomeID = ?", (member_id, homeid))
         conn.commit()
-        msg = f"Đã xóa User {ten_tai_khoan_email_sdt_member} khỏi căn hộ {homeid}"
+        msg = f"Đã xóa User {sdt} khỏi căn hộ {homeid} trong Database"
         print(msg)
     except:
-        msg = f"Lỗi! Không xóa được User {ten_tai_khoan_email_sdt_member} khỏi căn hộ {homeid}"
+        msg = f"Lỗi! Không xóa được User {sdt} khỏi căn hộ {homeid}trong Database"
         print(msg)
-        return jsonify({'message': msg}), 404
+        return jsonify({'message': msg}), 500
     #---------------------------------------------------------------------------------------
     try:
-        # Xóa PassCode
-        cursor.execute("DELETE FROM HomeMember WHERE HomeMemberID = ? AND HomeID = ?", (member_id, homeid))
-        conn.commit()
-        msg = f"Đã xóa User {ten_tai_khoan_email_sdt_member} khỏi căn hộ {homeid}"
-        print(msg)
-        return jsonify({'message': msg}), 200
+        # Lấy danh sách các LockID trong căn hộ cần xóa quyền
+        cursor.execute("SELECT LockID FROM Lock WHERE HomeID = ?", homeid)
+        list_lockid = [row.LockID for row in cursor.fetchall()]
+        
+        #################### Xóa PassCode trên TTLock ####################
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+        url = "https://euapi.sciener.com/v3/keyboardPwd/delete"
+
+        for lock_id in list_lockid:      
+            now = datetime.datetime.now()
+            new_time = now + datetime.timedelta(seconds=2)
+            timestamp = int(new_time.timestamp() * 1000)
+            
+            # Lấy PassCodeID từ "sdt" và "lock_id"
+            cursor.execute(f"SELECT PassCodeID FROM PassCode WHERE LockID = ? AND Username = ?", (lock_id, username))
+            passcode_id = cursor.fetchone().PassCodeID
+            data = {
+                "clientId": '87ed6cf1e9274e65af6500193fd7dce8',
+                "accessToken": access_token,
+                "lockId": int(lock_id), #9399008,
+                "keyboardPwdId": passcode_id,
+                "deleteType": 2,
+                "date": timestamp,
+            }
+            response = requests.post(url, headers=headers, data=data)
+            if response.status_code == 200:
+                try:
+                    if response.json()['errcode']==0:
+                        #################### Xóa PassCode trong Database SQL ####################
+                        cursor.execute("DELETE FROM PassCode WHERE Username = ?", username)
+                        conn.commit()
+                        msg = f"Xóa thành công PassCode ở Lock {lock_id} của User {username}"
+                        print(msg)
+                    else:
+                        errcode = response.json()['errcode']
+                        cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
+                        error = cursor.fetchone().Description
+                        print(error)
+                        return Response(error, mimetype='text/plain')
+                    
+                except Exception as e:
+                    print(e)
+                    msg = f"Lỗi! Chưa xóa được PassCode ở Lock {lock_id} của User {username} trong Database"
+                    print(msg)
+        return jsonify({'message': "Đã xóa xong"}), 200
     except:
-        msg = f"Lỗi! Không xóa được User {ten_tai_khoan_email_sdt_member} khỏi căn hộ {homeid}"
+        msg = f"Lỗi! Không xóa được User {username} khỏi căn hộ {homeid}"
         print(msg)
-        return jsonify({'message': msg}), 404
+        return jsonify({'message': msg}), 500
     
 #---------------------------------------------------------------------------------------------------
 
@@ -1022,7 +1058,7 @@ def homememberlist():
         return jsonify({'message': 'Sai key'}), 400
     
     homeid = data.get('homeid')
-    ten_tai_khoan_email_sdt = data.get('username')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     
     print("homeid:", homeid, ' - ', type(homeid))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
@@ -1077,7 +1113,7 @@ def update_history():
         return jsonify({'message': 'Sai key'}), 400
 
     # Lấy dữ liệu từ request
-    username = data.get('username')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     lock_id = data.get('lock_id')
     history_code = data.get('history_code')
     
@@ -1087,6 +1123,23 @@ def update_history():
     print("username:", username, ' - ', type(username))
     print("lock_id:", lock_id, ' - ', type(lock_id))
     print("history_code:", history_code, ' - ', type(history_code))
+    
+    try:
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
 
     # Xác định HistoryDescription
     if history_code==0:
@@ -1161,21 +1214,35 @@ def check_existed_passcode():
         return jsonify({'message': 'Sai key'}), 400
     
     lock_id = data.get('lockid')
-    username = data.get('username')
-    # passcode = data.get('passcode')
-    # passcode_name = data.get('passcode_name')
-    # access_token = data.get('access_token')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     
     print("lockid:", lock_id, ' - ', type(lock_id))
-    print("username:", username, ' - ', type(username))
-    # print("passcode:", passcode, ' - ', type(passcode))
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+    try:
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
     
     cursor.execute("SELECT * FROM PassCode WHERE LockID = ? AND Username = ? ", (lock_id, username))
     results = cursor.fetchone()
     if results:
+        print(results.PassCode)
         return Response(results.PassCode, mimetype='text/plain')
     else:
-        return Response("Đặt PassCode", mimetype='text/plain')
+        print("Đặt PassCode")
+        return Response("1", mimetype='text/plain')
     
 #---------------------------------------------------------------------------------------------------
 
@@ -1188,15 +1255,32 @@ def add_custom_passcode():
         return jsonify({'message': 'Sai key'}), 400
     
     lock_id = data.get('lockid')
-    username = data.get('username')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     passcode = data.get('passcode')
-    # passcode_name = data.get('passcode_name')
     access_token = data.get('access_token')
     
     print("lockid:", lock_id, ' - ', type(lock_id))
-    print("username:", username, ' - ', type(username))
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     print("passcode:", passcode, ' - ', type(passcode))
 
+    try:
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    
+    
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
     url = "https://euapi.sciener.com/v3/keyboardPwd/add"
 
@@ -1255,46 +1339,169 @@ def add_custom_passcode():
     else:
         msg = "Failed"
         print(msg)
-        return jsonify({"message": msg}), 500
-
+        return Response(msg, mimetype='text/plain')
+    
 #---------------------------------------------------------------------------------------------------
 
-# @app.route('/api/lock/delete-passcode', methods=['POST'])
-# def delete_passcode():
-#     data = request.get_json()
-#     key = data.get('key')
-#     if key not in api_keys:
-#         print('Sai key')
-#         return jsonify({'message': 'Sai key'}), 400
+@app.route('/api/lock/change-passcode', methods=['POST'])
+def change_passcode():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
     
-#     lock_id = data.get('lockid')
-#     username = data.get('username')
-#     passcode = data.get('passcode')
-#     # passcode_name = data.get('passcode_name')
-#     access_token = data.get('access_token')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    lock_id = data.get('lockid')
+    new_passcode = data.get('new_passcode')
+    access_token = data.get('access_token')
     
-#     print("lockid:", lock_id, ' - ', type(lock_id))
-#     print("username:", username, ' - ', type(username))
-#     print("passcode:", passcode, ' - ', type(passcode))
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    print("lockid:", lock_id, ' - ', type(lock_id))
+    print("new_passcode:", new_passcode, ' - ', type(new_passcode))
 
-#     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-#     url = "https://euapi.sciener.com/v3/keyboardPwd/delete"
+    try:
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    url = "https://euapi.sciener.com/v3/keyboardPwd/change"
 
-#     now = datetime.datetime.now()
-#     new_time = now + datetime.timedelta(seconds=2)
-#     timestamp = int(new_time.timestamp() * 1000)
-        
-#     data = {
-#         "clientId": '87ed6cf1e9274e65af6500193fd7dce8',
-#         "accessToken": access_token,
-#         "lockId": int(lock_id), #9399008,
-#         # "keyboardPwdId": passcode_id,
-#         "deleteType": 2,
-#         "date": timestamp,
-#     }
-#     response = requests.post(url, headers=headers, data=data)
-#     if response.status_code == 200:
-#         print()
+    now = datetime.datetime.now()
+    new_time = now + datetime.timedelta(seconds=2)
+    timestamp = int(new_time.timestamp() * 1000)
+    
+    # Lấy PassCodeID
+    cursor.execute("SELECT PassCodeID FROM PassCode WHERE Username = ?", username)
+    passcode_id = cursor.fetchone().PassCodeID
+    
+    data = {
+        "clientId": '87ed6cf1e9274e65af6500193fd7dce8',
+        "accessToken": access_token,
+        "lockId": 9399008,
+        "keyboardPwdId": passcode_id,
+        "newKeyboardPwd": new_passcode,
+        # "startDate": timestamp,
+        # "endDate": timestamp+50000,
+        "changeType": 2,
+        "date": timestamp,
+    }
+    response = requests.post(url, headers=headers, data=data)
+    if response.status_code == 200:
+        try:
+            if response.json()['errcode']==0:
+                #################### Đổi PassCode trong Database SQL ####################
+                cursor.execute("UPDATE PassCode SET PassCode = ? WHERE Username = ?", (new_passcode, username))
+                conn.commit()
+                msg = f"Đổi thành công PassCode của User {username}"
+                print(msg)
+                return Response("Đã đổi PassCode", mimetype='text/plain')
+            else:
+                # Trả về lỗi trong ds lỗi TTLock
+                errcode = response.json()['errcode']
+                cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
+                error = cursor.fetchone().Description
+                print(error)
+                return Response(error, mimetype='text/plain')
+            
+        except Exception as e:
+            print(e)
+            return Response("Lỗi! Chưa đổi được PassCode trong Database", mimetype='text/plain')
+    else:
+        msg = f"Lỗi! Chưa đổi được PassCode của User {username}"
+        print(msg)
+        return Response(msg, mimetype='text/plain')
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/lock/delete-passcode', methods=['POST'])
+def delete_passcode():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    lock_id = data.get('lockid')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    access_token = data.get('access_token')
+    
+    print("lockid:", lock_id, ' - ', type(lock_id))
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+    try:
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    
+    #################### Xóa PassCode trên TTLock ####################
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    url = "https://euapi.sciener.com/v3/keyboardPwd/delete"
+
+    now = datetime.datetime.now()
+    new_time = now + datetime.timedelta(seconds=2)
+    timestamp = int(new_time.timestamp() * 1000)
+    
+    # Lấy PassCodeID
+    cursor.execute("SELECT PassCodeID FROM PassCode WHERE Username = ?", username)
+    passcode_id = cursor.fetchone().PassCodeID
+    data = {
+        "clientId": '87ed6cf1e9274e65af6500193fd7dce8',
+        "accessToken": access_token,
+        "lockId": int(lock_id), #9399008,
+        "keyboardPwdId": passcode_id,
+        "deleteType": 2,
+        "date": timestamp,
+    }
+    response = requests.post(url, headers=headers, data=data)
+    if response.status_code == 200:
+        try:
+            if response.json()['errcode']==0:
+                #################### Xóa PassCode trong Database SQL ####################
+                cursor.execute("DELETE FROM PassCode WHERE Username = ?", username)
+                conn.commit()
+                msg = f"Xóa thành công PassCode của User {username}"
+                print(msg)
+                return Response("Đã xóa PassCode", mimetype='text/plain')
+            else:
+                # Trả về lỗi trong ds lỗi TTLock
+                errcode = response.json()['errcode']
+                cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
+                error = cursor.fetchone().Description
+                print(error)
+                return Response(error, mimetype='text/plain')
+            
+        except Exception as e:
+            print(e)
+            return Response("Lỗi! Chưa xóa được PassCode trong Database", mimetype='text/plain')
+    else:
+        msg = f"Lỗi! Chưa xóa được PassCode của User {username}"
+        print(msg)
+        return Response(msg, mimetype='text/plain')
 ####################################################################################################
 
 # @app.route('/api/camera/add', methods=['POST'])
@@ -1323,7 +1530,7 @@ def get_camera():
         print('Sai key')
         return jsonify({'message': 'Sai key'}), 400
     
-    ten_tai_khoan_email_sdt = data.get('username')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     try:
         # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
@@ -1333,6 +1540,7 @@ def get_camera():
             cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
         else:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
         results = cursor.fetchall()
         customer_id = results[0][0]
     except:
@@ -1343,18 +1551,26 @@ def get_camera():
     # Lấy danh sách camera của User
     camera_list = []
     try:
-        # cursor.execute(f"""SELECT lc.LockID, lc.CameraID
-        #                     FROM Lock_Camera lc
-        #                     JOIN CustomerHome ch ON lc.HomeID = ch.HomeID
-        #                     WHERE ch.CustomerID = '{customer_id}'
-        #                 """)
-        cursor.execute(f"""SELECT lc.LockID, lc.CameraID
+        # Lấy cam của User
+        cursor.execute(f"""
+                            SELECT lc.LockID, lc.CameraID
                             FROM Lock_Camera lc
                             JOIN CustomerHome ch ON lc.HomeID = ch.HomeID
-                            JOIN HomeMember hm ON lc.HomeID = hm.HomeID
-                            WHERE ch.CustomerID = {customer_id} OR hm.HomeMemberID = {customer_id}
+                            WHERE ch.CustomerID = '{customer_id}'
                         """)
-        results = cursor.fetchall()
+        result_1 = cursor.fetchall()
+        
+        # Lấy cam được thêm quyền
+        cursor.execute(f"""
+                            SELECT lc.LockID, lc.CameraID
+                            FROM Lock_Camera lc
+                            JOIN HomeMember hm ON lc.HomeID = hm.HomeID
+                            WHERE hm.HomeMemberID = {customer_id}
+                        """)
+        result_2 = cursor.fetchall()
+        
+        results = result_1 + result_2
+        
         for i in results:
             # Nếu cam không có khóa
             if i.LockID==None:
