@@ -1118,7 +1118,7 @@ def update_history():
     history_code = data.get('history_code')
     
     current_datetime = datetime.datetime.now()
-    history_date_str = current_datetime.strftime("%Y-%m-%d %H:%M:%S") # String -> "2023-07-21 15:30:00"
+    # history_date_str = current_datetime.strftime("%Y-%m-%d %H:%M:%S") # String -> "2023-07-21 15:30:00"
     
     print("username:", username, ' - ', type(username))
     print("lock_id:", lock_id, ' - ', type(lock_id))
@@ -1149,12 +1149,12 @@ def update_history():
         history_description = "Lỗi: " + cursor.fetchone().Description
         
     # Chuyển đổi định dạng datetime
-    try:
-        history_date = datetime.datetime.strptime(history_date_str, "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        msg = "Invalid HistoryDate format. It should be in format 'YYYY-MM-DD HH:MM:SS'"
-        print(msg)
-        return jsonify({"error": msg}), 400
+    # try:
+    #     history_date = datetime.datetime.strptime(history_date_str, "%Y-%m-%d %H:%M:%S")
+    # except ValueError:
+    #     msg = "Invalid HistoryDate format. It should be in format 'YYYY-MM-DD HH:MM:SS'"
+    #     print(msg)
+    #     return jsonify({"error": msg}), 400
 
     # Lấy FullName từ Username
     try:
@@ -1167,7 +1167,7 @@ def update_history():
     
     # Thêm dữ liệu vào bảng 'LockHistory' trong CSDL
     cursor.execute("INSERT INTO LockHistory (LockID, HistoryDescription, HistoryCode, HistoryDate, FullName, Username) VALUES (?, ?, ?, ?, ?, ?)", 
-                   (lock_id, history_description, history_code, history_date, fullname, username))
+                   (lock_id, history_description, history_code, current_datetime, fullname, username))
     conn.commit()
     msg = "LockHistory updated successfully"
     print(msg)
@@ -1502,6 +1502,7 @@ def delete_passcode():
         msg = f"Lỗi! Chưa xóa được PassCode của User {username}"
         print(msg)
         return Response(msg, mimetype='text/plain')
+
 ####################################################################################################
 
 # @app.route('/api/camera/add', methods=['POST'])
@@ -1647,6 +1648,25 @@ def get_img_camera():
     # Trả về chuỗi base64 cho app
     print("Vừa trả về chuỗi base64")
     return Response(base64_image, mimetype='text/plain')
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/camera/alert', methods=['POST'])
+def delete_passcode():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    lock_id = data.get('lockid')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    access_token = data.get('access_token')
+    
+    print("lockid:", lock_id, ' - ', type(lock_id))
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+    
 #---------------------------------------------------------------------------------------------------
 @app.route('/api/lock/record', methods=['POST'])
 def get_lockrecord():
