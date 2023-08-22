@@ -897,8 +897,8 @@ def add_home_member():
     print("homename:", homename, ' - ', type(homename))
     
     #---------------------------------------------------------------------------------------
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
     try:
-        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -1050,7 +1050,7 @@ def delete_home_member():
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/lock/home-member-list', methods=['POST'])
-def homememberlist():
+def home_member_list():
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
@@ -1063,8 +1063,8 @@ def homememberlist():
     print("homeid:", homeid, ' - ', type(homeid))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
 
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
     try:
-        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -1124,8 +1124,8 @@ def update_history():
     print("lock_id:", lock_id, ' - ', type(lock_id))
     print("history_code:", history_code, ' - ', type(history_code))
     
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
     try:
-        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -1219,8 +1219,8 @@ def check_existed_passcode():
     print("lockid:", lock_id, ' - ', type(lock_id))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
     try:
-        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -1263,8 +1263,8 @@ def add_custom_passcode():
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     print("passcode:", passcode, ' - ', type(passcode))
 
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
     try:
-        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -1360,8 +1360,8 @@ def change_passcode():
     print("lockid:", lock_id, ' - ', type(lock_id))
     print("new_passcode:", new_passcode, ' - ', type(new_passcode))
 
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
     try:
-        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -1441,8 +1441,8 @@ def delete_passcode():
     print("lockid:", lock_id, ' - ', type(lock_id))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
     try:
-        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -1533,8 +1533,9 @@ def get_camera():
     
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
     try:
-        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -1649,24 +1650,55 @@ def get_img_camera():
     print("Vừa trả về chuỗi base64")
     return Response(base64_image, mimetype='text/plain')
 
-#---------------------------------------------------------------------------------------------------
+####################################################################################################
 
-@app.route('/api/camera/alert', methods=['POST'])
-def delete_passcode():
+@app.route('/api/notification/get', methods=['POST'])
+def notification_get():
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
         return jsonify({'message': 'Sai key'}), 400
     
-    lock_id = data.get('lockid')
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
-    access_token = data.get('access_token')
     
-    print("lockid:", lock_id, ' - ', type(lock_id))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
     
+    # Lấy danh sách các thông báo
+    try:
+        cursor.execute(("SELECT * FROM Notification WHERE CustomerID = ? ORDER BY Date DESC", customerid))
+        notifications = cursor.fetchall()
+        notification_list = []
+        for notification in notifications:
+            notification_list.append({
+                'Title': notification.Title,
+                'Body': notification.Body,
+                'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
+                # 'BASE64': notification.BASE64,
+            })
+        print(f"Trả về list các thông báo của User {username}...")
+        return json.dumps(notification_list), 200
+    except:
+        msg = f"Lỗi! Không lấy được list các thông báo của User {username}"
+        print(msg)
+        return jsonify({'message': msg}), 404
 #---------------------------------------------------------------------------------------------------
 @app.route('/api/lock/record', methods=['POST'])
 def get_lockrecord():
