@@ -1,6 +1,7 @@
 
 from flask import Flask, request, jsonify, Response
 import socket, pyodbc, random, time, os, cv2, base64, hashlib, time, requests, datetime, json
+import numpy as np
 app = Flask(__name__)
 value = None
 random_banner = ''
@@ -538,7 +539,8 @@ def homeinfo():
                 'HomeName': result[0],
                 'HomeAddress': result[1],
                 'DistrictID': result[2],
-                'HomeID': result[3]
+                'HomeID': result[3],
+                'Owner': '1',
             })
         
         if len(results)==0:
@@ -566,7 +568,8 @@ def homeinfo():
                 'HomeName': results_[0],
                 'HomeAddress': results_[1],
                 'DistrictID': results_[2],
-                'HomeID': homeid
+                'HomeID': homeid,
+                'Owner': '0',
             })
         if len(results)==0:
             print(f"Không có căn hộ nào User {ten_tai_khoan_email_sdt} được thêm quyền")
@@ -918,7 +921,8 @@ def add_home_member():
         results = cursor.fetchall()
         homeid = results[0][0]
     except:
-        msg = f"Lỗi! Không lấy được HomeID của Admin {ten_tai_khoan_email_sdt}"
+        # msg = f"Lỗi! Không lấy được HomeID của Admin {ten_tai_khoan_email_sdt}"
+        msg = f"Lỗi! Không phải tài khoản Quản trị viên."
         print(msg)
         return jsonify({'message': msg}), 404
     #---------------------------------------------------------------------------------------
@@ -933,7 +937,7 @@ def add_home_member():
         results = cursor.fetchall()
         homemember_id = results[0][0]
     except:
-        msg = f"Lỗi! Không lấy được CustomerID của HomeMember {homemember}"
+        msg = f"Lỗi! Không tìm thấy tài khoản {homemember}"
         print(msg)
         return jsonify({'message': msg}), 404
     #---------------------------------------------------------------------------------------
@@ -992,7 +996,7 @@ def delete_home_member():
         msg = f"Đã xóa User {sdt} khỏi căn hộ {homeid} trong Database"
         print(msg)
     except:
-        msg = f"Lỗi! Không xóa được User {sdt} khỏi căn hộ {homeid}trong Database"
+        msg = f"Lỗi! Không xóa được User {sdt} khỏi căn hộ {homeid} trong Database"
         print(msg)
         return jsonify({'message': msg}), 500
     #---------------------------------------------------------------------------------------
@@ -1012,7 +1016,10 @@ def delete_home_member():
             
             # Lấy PassCodeID từ "sdt" và "lock_id"
             cursor.execute(f"SELECT PassCodeID FROM PassCode WHERE LockID = ? AND Username = ?", (lock_id, username))
-            passcode_id = cursor.fetchone().PassCodeID
+            result = cursor.fetchone()
+            if result==None:
+                continue
+            passcode_id = result.PassCodeID
             data = {
                 "clientId": '87ed6cf1e9274e65af6500193fd7dce8',
                 "accessToken": access_token,
@@ -1041,7 +1048,8 @@ def delete_home_member():
                     print(e)
                     msg = f"Lỗi! Chưa xóa được PassCode ở Lock {lock_id} của User {username} trong Database"
                     print(msg)
-        return jsonify({'message': "Đã xóa xong"}), 200
+        msg = "Đã xóa xong"
+        return jsonify({'message': msg}), 200
     except:
         msg = f"Lỗi! Không xóa được User {username} khỏi căn hộ {homeid}"
         print(msg)
@@ -1077,6 +1085,19 @@ def home_member_list():
         msg = f"Lỗi! Không lấy được CustomerID của Admin {ten_tai_khoan_email_sdt}"
         print(msg)
         return jsonify({'message': msg}), 404
+    #---------------------------------------------------------------------------------------
+    # # Kiểm tra "ten_tai_khoan_email_sdt" có phải admin của căn hộ không
+    # cursor.execute("SELECT * FROM CustomerHome WHERE HomeID = ? AND CustomerID = ?", (homeid, admin_id))
+    # if not cursor.fetchall():
+    #     member_list = []
+    #     member_list.append({
+    #             'Username': 'Không phải Admin',
+    #             'Email': 'Không phải Admin',
+    #             'Mobile': 'Không phải Admin',
+    #             'FullName': 'Không phải Admin'
+    #         })
+    #     print(f"Đây không phải tài khoản Admin")
+    #     return json.dumps(member_list), 200
     #---------------------------------------------------------------------------------------
     try:
         member_list = []
@@ -1120,7 +1141,7 @@ def update_history():
     current_datetime = datetime.datetime.now()
     # history_date_str = current_datetime.strftime("%Y-%m-%d %H:%M:%S") # String -> "2023-07-21 15:30:00"
     
-    print("username:", username, ' - ', type(username))
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     print("lock_id:", lock_id, ' - ', type(lock_id))
     print("history_code:", history_code, ' - ', type(history_code))
     
@@ -1682,47 +1703,101 @@ def notification_get():
         return jsonify({'message': msg}), 404
     
     # Lấy danh sách các thông báo
-    try:
-        cursor.execute(("SELECT * FROM Notification WHERE CustomerID = ? ORDER BY Date DESC", customerid))
-        notifications = cursor.fetchall()
-        notification_list = []
-        for notification in notifications:
-            notification_list.append({
-                'Title': notification.Title,
-                'Body': notification.Body,
-                'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
-                # 'BASE64': notification.BASE64,
-            })
-        print(f"Trả về list các thông báo của User {username}...")
-        return json.dumps(notification_list), 200
-    except:
-        msg = f"Lỗi! Không lấy được list các thông báo của User {username}"
-        print(msg)
-        return jsonify({'message': msg}), 404
+    # try:
+    cursor.execute("SELECT * FROM Notification WHERE CustomerID = ? ORDER BY Date DESC", customerid)
+    notifications = cursor.fetchall()
+    notification_list = []
+    for notification in notifications:
+        # Chuyển ảnh sang base64
+        img = cv2.imread(notification.ImagePath)
+        _, image_data = cv2.imencode('.jpg', img)
+        base64_image = base64.b64encode(image_data).decode("utf-8")
+        
+        notification_list.append({
+            'Type': notification.Type,
+            'Title': notification.Title,
+            'Body': notification.Body,
+            'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
+            'BASE64': base64_image,
+        })
+    print(f"Trả về list các thông báo của User {username}...")
+    return json.dumps(notification_list), 200
+    # except:
+    #     msg = f"Lỗi! Không lấy được list các thông báo của User {username}"
+    #     print(msg)
+    #     return jsonify({'message': msg}), 404
 #---------------------------------------------------------------------------------------------------
-@app.route('/api/lock/record', methods=['POST'])
+@app.route('/api/notification/save', methods=['POST'])
 def get_lockrecord():
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
         return jsonify({'message': 'Sai key'}), 400
-    client_id = data.get('client_id')
-    lock_id = data.get('lock_id')
-    access_token = data.get('access_token')
-    now = datetime.datetime.now()
-    new_time = now + datetime.timedelta(seconds=2)
-    date = int(new_time.timestamp() * 1000)
-    api_url = f"https://euapi.sciener.com/v3/lockRecord/list?clientId={client_id}&accessToken={access_token}&startDate=1526674054000&endDate={date}&lockId={lock_id}&pageNo=1&pagesize=50&date={date}"
-
+    
+    notification_type = data.get('notification_type')
+    title = data.get('title')
+    body = data.get('body')
+    anh_base64 = data.get('base64')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    
+    print("notification_type:", notification_type, ' - ', type(notification_type))
+    print("title:", title, ' - ', type(title))
+    print("body:", body, ' - ', type(body))
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
     try:
-        response = requests.get(api_url)
-        data = response.json()
-        print(data)
-        return Response("OK", mimetype='text/plain')
-        
-    except requests.exceptions.RequestException as e:
-        return Response("Error when get lock state", mimetype='text/plain')
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+
+    # Lấy thông tin ngày, tạo tên ảnh
+    current_time = datetime.datetime.now()
+    time_string = current_time.strftime("%H%M%S_%d%m%Y")
+    folder_path = f"/Notification/{customerid}/{notification_type}/"
+    img_path = folder_path + f"{time_string}.jpg" ##### <<<<<<<<<<<<<<<<<<<<<<<<<<<
+    
+    # Kiểm tra thư mục ảnh thông báo tồn tại chưa
+    
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    
+    # Chuyển base64 sang ảnh
+    anh_base64 = np.frombuffer(base64.b64decode(anh_base64), dtype=np.uint8)
+    anh_base64 = cv2.imdecode(anh_base64, cv2.IMREAD_ANYCOLOR)
+    image_rgb = cv2.cvtColor(anh_base64, cv2.COLOR_BGR2RGB)
+    
+    # Lưu ảnh vào folder "/{customerid}/{notification_type}/"
+    cv2.imwrite(img_path, image_rgb)
+    
+    #----------------------------------------------------------------------------------------------
+    
+    # try:
+    cursor.execute("INSERT INTO Notification (CustomerID, Type, Title, Body, Date, ImagePath) VALUES (?, ?, ?, ?, ?, ?)", 
+                   (customerid, notification_type, title, body, current_time, img_path))
+    conn.commit()
+    
+    msg = f"Đã lưu thông tin về thông báo vào database"
+    print(msg)
+    return jsonify({'message': msg}), 201
+
+    # except:
+    #     msg = f"Lỗi! Không cập nhật được thông báo"
+    #     print(msg)
+    #     return jsonify({'message': msg}), 404
+
 
 ####################################################################################################
 ####################################################################################################
