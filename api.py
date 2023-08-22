@@ -165,54 +165,91 @@ def check_account():
     fcm = data.get('fcm')
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     password = data.get('password')
-
+    
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    print("password:", password, ' - ', type(password))
+    
     # Kiểm tra nếu "ten_tai_khoan_email_sdt" có chứa ký tự "@"
     if "@" in ten_tai_khoan_email_sdt:
+        # Kiểm tra có tồn tại Email này không
+        cursor.execute("SELECT * FROM Customer WHERE Email = ?", (ten_tai_khoan_email_sdt,))
+        result = cursor.fetchone()
+        if not result:
+            msg = "Email does not exist"
+            print(msg)
+            jsonify({'message': msg}), 404
+        
         # Kiểm tra trong cột "Email" và "Password"
-        print("Đã đăng nhập bằng Email: ", ten_tai_khoan_email_sdt)
-        query_check = "SELECT COUNT(*) FROM Customer WHERE Email = ? AND Password = ?"
+        print("Đăng nhập bằng Email: ", ten_tai_khoan_email_sdt)
+        query_check = "SELECT * FROM Customer WHERE Email = ? AND Password = ?"
         cursor.execute(query_check, (ten_tai_khoan_email_sdt, password))
         result = cursor.fetchone()
+        if not result:
+            msg = "Wrong Password"
+            print(msg)
+            jsonify({'message': msg}), 404
 
     # Kiểm tra nếu "ten_tai_khoan_email_sdt" toàn là số
     elif ten_tai_khoan_email_sdt.isdigit():
-        # Kiểm tra trong cột "Mobile" và "Password"
-        print("Đã đăng nhập bằng SDT: ", ten_tai_khoan_email_sdt)
-        query_check = "SELECT COUNT(*) FROM Customer WHERE Mobile = ? AND Password = ?"
-        cursor.execute(query_check, (ten_tai_khoan_email_sdt, password))
+        # Kiểm tra có tồn tại SDT này không
+        cursor.execute("SELECT * FROM Customer WHERE Mobile = ?", (ten_tai_khoan_email_sdt,))
         result = cursor.fetchone()
-
-    else:
-        # Kiểm tra trong cột "Username" và "Password"
-        print("Đã đăng nhập bằng Username: ", ten_tai_khoan_email_sdt)
-        query_check = "SELECT COUNT(*) FROM Customer WHERE Username = ? AND Password = ?"
-        cursor.execute(query_check, (ten_tai_khoan_email_sdt, password))
-        result = cursor.fetchone()
-
-    if result[0] > 0:
-        print('Tồn tại')
-        #------------------------------------ Post FCM ------------------------------------
-        if "@" in ten_tai_khoan_email_sdt:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
-        elif ten_tai_khoan_email_sdt.isdigit():
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
-        else:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
-        results = cursor.fetchall()
-        customerid = results[0][0]
-        try:
-            cursor.execute("UPDATE Customer SET FCM = ? WHERE CustomerID = ?", fcm, customerid)
-            print(f"Đã update FCM cho User {ten_tai_khoan_email_sdt}")
-            conn.commit()
-        except:
-            msg = f"Lỗi! Không update được FCM cho User {ten_tai_khoan_email_sdt}"
+        if not result:
+            msg = "Phone number does not exist"
             print(msg)
-            return jsonify({'message': msg}), 500
-        #-----------------------------------------------------------------------------------
-        return jsonify({'Exist': 1}), 200
+            jsonify({'message': msg}), 404
+        
+        # Kiểm tra trong cột "Mobile" và "Password"
+        print("Đăng nhập bằng SDT: ", ten_tai_khoan_email_sdt)
+        query_check = "SELECT * FROM Customer WHERE Mobile = ? AND Password = ?"
+        cursor.execute(query_check, (ten_tai_khoan_email_sdt, password))
+        result = cursor.fetchone()
+        if not result:
+            msg = "Wrong Password"
+            print(msg)
+            jsonify({'message': msg}), 404
+
     else:
-        print('Không tồn tại')
-        return jsonify({'Exist': 0}), 404
+        # Kiểm tra có tồn tại Tên người dùng này không
+        cursor.execute("SELECT * FROM Customer WHERE Username = ?", (ten_tai_khoan_email_sdt,))
+        result = cursor.fetchone()
+        if not result:
+            msg = "Username does not exist"
+            print(msg)
+            return jsonify({'message': msg}), 404
+        
+        # Kiểm tra trong cột "Username" và "Password"
+        print("Đăng nhập bằng Username: ", ten_tai_khoan_email_sdt)
+        query_check = "SELECT * FROM Customer WHERE Username = ? AND Password = ?"
+        cursor.execute(query_check, (ten_tai_khoan_email_sdt, password))
+        result = cursor.fetchone()
+        if not result:
+            msg = "Wrong Password"
+            print(msg)
+            return jsonify({'message': msg}), 404
+
+    #------------------------------------ Post FCM ------------------------------------
+    if "@" in ten_tai_khoan_email_sdt:
+        cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+    elif ten_tai_khoan_email_sdt.isdigit():
+        cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+    else:
+        cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+    results = cursor.fetchall()
+    customerid = results[0][0]
+    try:
+        cursor.execute("UPDATE Customer SET FCM = ? WHERE CustomerID = ?", fcm, customerid)
+        print(f"Đã update FCM cho User {ten_tai_khoan_email_sdt}")
+        conn.commit()
+    except:
+        msg = f"Lỗi! Không update được FCM cho User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    #-----------------------------------------------------------------------------------
+    msg = 'Login successfull!'
+    print(msg)
+    return jsonify({'message': msg}), 200
+
     
 #---------------------------------------------------------------------------------------------------
 
