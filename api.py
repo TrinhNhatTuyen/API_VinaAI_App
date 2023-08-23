@@ -1367,23 +1367,24 @@ def add_custom_passcode():
         except:
             passcode_id =  response.json()['keyboardPwdId']
             #-----------------------------------------
-            # Lấy được giá trị nhưng INSERT vào bảng lại không được ???
+            # Từ LockID lấy ra Owner, HomeName và HomeID
             # cursor.execute(f"""
             #                     SELECT C.Username, CH.HomeName, CH.HomeID
-            #                     FROM Lock L
+            #                     FROM Lock_Camera LC
+            #                     JOIN Lock L ON LC.LockID = L.LockID
             #                     JOIN CustomerHome CH ON L.HomeID = CH.HomeID
             #                     JOIN Customer C ON CH.CustomerID = C.CustomerID
-            #                     WHERE L.LockID = {lock_id}
+            #                     WHERE LC.LockID = {lock_id}
             #                 """)
             #-----------------------------------------
-            # Từ LockID lấy ra Owner và HomeID
+            # Từ LockID lấy ra Owner, HomeName và HomeID
             cursor.execute(f"""
                                 SELECT C.Username, CH.HomeName, CH.HomeID
-                                FROM Lock_Camera LC
-                                JOIN Lock L ON LC.LockID = L.LockID
+                                FROM Camera CAM
+                                JOIN Lock L ON CAM.LockID = L.LockID
                                 JOIN CustomerHome CH ON L.HomeID = CH.HomeID
                                 JOIN Customer C ON CH.CustomerID = C.CustomerID
-                                WHERE LC.LockID = {lock_id}
+                                WHERE CAM.LockID = {lock_id}
                             """)
             row = cursor.fetchone()
             if row:
@@ -1571,13 +1572,23 @@ def delete_passcode():
 #         print('Sai key')
 #         return jsonify({'message': 'Sai key'}), 400
     
-#     homeid = data.get('homeid')
 #     camera_name = data.get('camera_name')
+#     homeid = data.get('homeid')
 #     cam_username = data.get('cam_username')
 #     cam_pass = data.get('cam_pass')
 #     rtsp = data.get('rtsp')
-#     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+#     print("camera_name:", camera_name, ' - ', type(camera_name))
+#     print("homeid:", homeid, ' - ', type(homeid))
+#     print("cam_username:", cam_username, ' - ', type(cam_username))
+#     print("cam_pass:", cam_pass, ' - ', type(cam_pass))
+#     print("rtsp:", rtsp, ' - ', type(rtsp))
 
+#     # Lưu vào bảng Camera
+#     cursor.execute("INSERT INTO Camera (CameraName, HomeID, CameraUsername, CameraPass, RTSP) VALUES (?, ?, ?, ?, ?)",
+#                    (camera_name, homeid, cam_username, cam_pass, rtsp))
+#     conn.commit()
+    
 
 #---------------------------------------------------------------------------------------------------
 
@@ -1613,18 +1624,18 @@ def get_camera():
     try:
         # Lấy cam của User
         cursor.execute(f"""
-                            SELECT lc.LockID, lc.CameraID
-                            FROM Lock_Camera lc
-                            JOIN CustomerHome ch ON lc.HomeID = ch.HomeID
+                            SELECT cam.LockID, cam.CameraID
+                            FROM Camera cam
+                            JOIN CustomerHome ch ON cam.HomeID = ch.HomeID
                             WHERE ch.CustomerID = '{customer_id}'
                         """)
         result_1 = cursor.fetchall()
         
         # Lấy cam được thêm quyền
         cursor.execute(f"""
-                            SELECT lc.LockID, lc.CameraID
-                            FROM Lock_Camera lc
-                            JOIN HomeMember hm ON lc.HomeID = hm.HomeID
+                            SELECT cam.LockID, cam.CameraID
+                            FROM Camera cam
+                            JOIN HomeMember hm ON cam.HomeID = hm.HomeID
                             WHERE hm.HomeMemberID = {customer_id}
                         """)
         result_2 = cursor.fetchall()
