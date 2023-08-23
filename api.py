@@ -1646,6 +1646,7 @@ def get_camera():
                 base64_image = base64.b64encode(image_data).decode("utf-8")
                 #--------------------------------------------------------------------------    
                 camera_list.append({
+                    'CameraID': i.CameraID,
                     'LockID': None,
                     'LockName': None,
                     'CameraName': cam.CameraName,
@@ -1668,6 +1669,7 @@ def get_camera():
                 base64_image = base64.b64encode(image_data).decode("utf-8")
                 #--------------------------------------------------------------------------             
                 camera_list.append({
+                    'CameraID': i.CameraID,
                     'LockID': lock.LockID,
                     'LockName': lock.LockName,
                     'CameraName': cam.CameraName,
@@ -1718,52 +1720,87 @@ def notification_get():
         print('Sai key')
         return jsonify({'message': 'Sai key'}), 400
     
-    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    # ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    # print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    camera_id = data.get('camera_id')
+    print("camera_id:", camera_id, ' - ', type(camera_id))
     
-    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
-    
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
-    try:
-        if "@" in ten_tai_khoan_email_sdt:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
-        elif ten_tai_khoan_email_sdt.isdigit():
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
-        else:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+    # # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # try:
+    #     if "@" in ten_tai_khoan_email_sdt:
+    #         cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+    #     elif ten_tai_khoan_email_sdt.isdigit():
+    #         cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+    #     else:
+    #         cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
-        customerid = cursor.fetchone().CustomerID
-        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
-        username = cursor.fetchone().Username
-    except:
-        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
-        print(msg)
-        return jsonify({'message': msg}), 404
+    #     customerid = cursor.fetchone().CustomerID
+    #     cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+    #     username = cursor.fetchone().Username
+    # except:
+    #     msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+    #     print(msg)
+    #     return jsonify({'message': msg}), 404
     
     # Lấy danh sách các thông báo
     # try:
-    cursor.execute("SELECT * FROM Notification WHERE CustomerID = ? ORDER BY Date DESC", customerid)
+    cursor.execute("SELECT * FROM Notification WHERE CameraID = ? ORDER BY Date DESC", camera_id)
     notifications = cursor.fetchall()
     notification_list = []
     for notification in notifications:
         # Chuyển ảnh sang base64
-        img = cv2.imread(notification.ImagePath)
-        _, image_data = cv2.imencode('.jpg', img)
-        base64_image = base64.b64encode(image_data).decode("utf-8")
+        # img = cv2.imread(notification.ImagePath)
+        # _, image_data = cv2.imencode('.jpg', img)
+        # base64_image = base64.b64encode(image_data).decode("utf-8")
         
         notification_list.append({
+            'ID_Notification': notification.ID,
             'Type': notification.Type,
             'Title': notification.Title,
             'Body': notification.Body,
             'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
-            'BASE64': base64_image,
+            # 'BASE64': base64_image,
         })
-    print(f"Trả về list các thông báo của User {username}...")
+    print(f"Trả về list các thông báo của Camera {camera_id}...")
     return json.dumps(notification_list), 200
     # except:
     #     msg = f"Lỗi! Không lấy được list các thông báo của User {username}"
     #     print(msg)
     #     return jsonify({'message': msg}), 404
+    
 #---------------------------------------------------------------------------------------------------
+
+@app.route('/api/notification/get-img', methods=['POST'])
+def get_img():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    id_notification = data.get('id_notification')
+    
+    print("id_notification:", id_notification, ' - ', type(id_notification))
+    
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    try:
+        cursor.execute("SELECT ImagePath FROM Notification WHERE ID_Notification = ?", id_notification)
+        image_path = cursor.fetchone().ImagePath
+        # Chuyển ảnh sang base64
+        img = cv2.cvtColor(cv2.imread(image_path), cv2.COLOR_BGR2RGB)
+        _, image_data = cv2.imencode('.jpg', img)
+        base64_image = base64.b64encode(image_data).decode("utf-8")
+        
+        # Trả về chuỗi base64 cho app
+        print("Vừa trả về chuỗi base64")
+        return Response(base64_image, mimetype='text/plain')
+    except:
+        msg = f"Lỗi! Không tìm thấy thông báo có ID {id_notification}"
+        print(msg)
+        return Response(msg, mimetype='text/plain')
+    
+#---------------------------------------------------------------------------------------------------
+
 @app.route('/api/notification/save', methods=['POST'])
 def get_lockrecord():
     data = request.get_json()
@@ -1776,34 +1813,17 @@ def get_lockrecord():
     title = data.get('title')
     body = data.get('body')
     anh_base64 = data.get('base64')
-    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    camera_id = data.get('camera_id')
     
     print("notification_type:", notification_type, ' - ', type(notification_type))
     print("title:", title, ' - ', type(title))
     print("body:", body, ' - ', type(body))
-    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
-    
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
-    try:
-        if "@" in ten_tai_khoan_email_sdt:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
-        elif ten_tai_khoan_email_sdt.isdigit():
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
-        else:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
-            
-        customerid = cursor.fetchone().CustomerID
-        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
-        username = cursor.fetchone().Username
-    except:
-        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
-        print(msg)
-        return jsonify({'message': msg}), 404
+    print("camera_id:", camera_id, ' - ', type(camera_id))
 
     # Lấy thông tin ngày, tạo tên ảnh
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%H%M%S_%d%m%Y")
-    folder_path = f"/Notification/{customerid}/{notification_type}/"
+    folder_path = f"/Notification/{camera_id}/{notification_type}/"
     img_path = folder_path + f"{time_string}.jpg" ##### <<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # Kiểm tra thư mục ảnh thông báo tồn tại chưa
@@ -1816,14 +1836,14 @@ def get_lockrecord():
     anh_base64 = cv2.imdecode(anh_base64, cv2.IMREAD_ANYCOLOR)
     image_rgb = cv2.cvtColor(anh_base64, cv2.COLOR_BGR2RGB)
     
-    # Lưu ảnh vào folder "/{customerid}/{notification_type}/"
+    # Lưu ảnh vào folder "/{camera_id}/{notification_type}/"
     cv2.imwrite(img_path, image_rgb)
     
     #----------------------------------------------------------------------------------------------
     
     # try:
-    cursor.execute("INSERT INTO Notification (CustomerID, Type, Title, Body, Date, ImagePath) VALUES (?, ?, ?, ?, ?, ?)", 
-                   (customerid, notification_type, title, body, current_time, img_path))
+    cursor.execute("INSERT INTO Notification (CameraID, Type, Title, Body, Date, ImagePath) VALUES (?, ?, ?, ?, ?, ?)", 
+                   (camera_id, notification_type, title, body, current_time, img_path))
     conn.commit()
     
     msg = f"Đã lưu thông tin về thông báo vào database"
