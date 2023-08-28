@@ -1588,8 +1588,28 @@ def delete_passcode():
 #     cursor.execute("INSERT INTO Camera (CameraName, HomeID, CameraUsername, CameraPass, RTSP) VALUES (?, ?, ?, ?, ?)",
 #                    (camera_name, homeid, cam_username, cam_pass, rtsp))
 #     conn.commit()
-    
 
+# #---------------------------------------------------------------------------------------------------
+
+# @app.route('/api/camera/add-existed-lock-to-cam', methods=['POST'])
+# def add_camera():
+#     data = request.get_json()
+#     key = data.get('key')
+#     if key not in api_keys:
+#         print('Sai key')
+#         return jsonify({'message': 'Sai key'}), 400
+    
+#     camera_id = data.get('camera_id')
+#     lock_id = data.get('lock_id')
+    
+#     print("camera_id:", camera_id, ' - ', type(camera_id))
+#     print("lock_id:", lock_id, ' - ', type(lock_id))
+
+
+#     # Lưu vào bảng Camera
+#     cursor.execute("UPDATE Camera SET LockID = ? WHERE HomeID = ?",
+#                    (lock_id, camera_id))
+#     conn.commit()
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/camera/get-user-camera', methods=['POST'])
@@ -1624,7 +1644,7 @@ def get_camera():
     try:
         # Lấy cam của User
         cursor.execute(f"""
-                            SELECT cam.LockID, cam.CameraID
+                            SELECT cam.LockID, cam.CameraID, cam.HomeID
                             FROM Camera cam
                             JOIN CustomerHome ch ON cam.HomeID = ch.HomeID
                             WHERE ch.CustomerID = '{customer_id}'
@@ -1633,7 +1653,7 @@ def get_camera():
         
         # Lấy cam được thêm quyền
         cursor.execute(f"""
-                            SELECT cam.LockID, cam.CameraID
+                            SELECT cam.LockID, cam.CameraID, cam.HomeID
                             FROM Camera cam
                             JOIN HomeMember hm ON cam.HomeID = hm.HomeID
                             WHERE hm.HomeMemberID = {customer_id}
@@ -1657,6 +1677,7 @@ def get_camera():
                 base64_image = base64.b64encode(image_data).decode("utf-8")
                 #--------------------------------------------------------------------------    
                 camera_list.append({
+                    'HomeID': i.HomeID,
                     'CameraID': i.CameraID,
                     'LockID': None,
                     'LockName': None,
@@ -1680,6 +1701,7 @@ def get_camera():
                 base64_image = base64.b64encode(image_data).decode("utf-8")
                 #--------------------------------------------------------------------------             
                 camera_list.append({
+                    'HomeID': i.HomeID,
                     'CameraID': i.CameraID,
                     'LockID': lock.LockID,
                     'LockName': lock.LockName,
@@ -1765,7 +1787,7 @@ def notification_get():
         # base64_image = base64.b64encode(image_data).decode("utf-8")
         
         notification_list.append({
-            'ID_Notification': notification.ID,
+            'ID_Notification': notification.ID_Notification,
             'Type': notification.Type,
             'Title': notification.Title,
             'Body': notification.Body,
@@ -1809,9 +1831,79 @@ def get_img():
         msg = f"Lỗi! Không tìm thấy thông báo có ID {id_notification}"
         print(msg)
         return Response(msg, mimetype='text/plain')
-    
+
 #---------------------------------------------------------------------------------------------------
 
+@app.route('/api/notification/turn-off', methods=['POST'])
+def turn_off_notification():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    camera_id = data.get('camera_id')
+    minutes = data.get('minutes')
+    
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    print("camera_id:", camera_id, ' - ', type(camera_id))
+    print("minutes:", minutes, ' - ', type(minutes))
+    
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        results = cursor.fetchall()
+        customer_id = results[0][0]
+    except:
+        msg = f"Lỗi! Không lấy được CustomerID của user {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+
+    offntfuntil_datetime = datetime.datetime.now() + datetime.timedelta(minutes=minutes)
+    
+    cursor.execute("INSERT INTO OffNotification (CameraID, CustomerID, TimeToTurnOn) VALUES (?, ?, ?)", 
+                        (camera_id, customer_id, offntfuntil_datetime))
+    conn.commit()
+        
+    msg = f"Tắt thông báo của User {ten_tai_khoan_email_sdt} về camera {camera_id} cho tới {offntfuntil_datetime.strftime('%Y-%m-%d %H:%M:%S')}"
+    print(msg)
+    return jsonify({'message': msg}), 201
+
+#########################################################################################################################
+#########################################################################################################################
+
+#-------------------------------------API cho Python-------------------------------------
+
+@app.route('/api/camera/info', methods=['POST'])
+def camera_info():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    cursor.execute("SELECT * FROM Camera")
+    cam = cursor.fetchall()
+    camera_list = []
+    for i in cam:
+        camera_list.append({
+            'RTSP': i.RTSP,
+            'CamID': i.CameraID,
+            'HomeID': i.HomeID,
+            'LockID': i.LockID,
+        })
+    print(f"Trả về danh sách thông tin camera")
+    return json.dumps(camera_list), 200
+
+#---------------------------------------------------------------------------------------------------  
+  
 @app.route('/api/notification/save', methods=['POST'])
 def get_lockrecord():
     data = request.get_json()
@@ -1865,6 +1957,64 @@ def get_lockrecord():
     #     msg = f"Lỗi! Không cập nhật được thông báo"
     #     print(msg)
     #     return jsonify({'message': msg}), 404
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/notification/get-fcm-to-send', methods=['POST'])
+def get_fcm_to_send():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    # OffNotification (CameraID, CustomerID, TimeToTurnOn)
+    camera_id = data.get('camera_id')
+    print("camera_id:", camera_id, ' - ', type(camera_id))
+
+    cursor.execute("SELECT * FROM OffNotification WHERE CameraID = ?", (camera_id,))
+    rows = cursor.fetchall()
+
+    # Duyệt qua các hàng, xóa hàng đó nếu đã hết tgian tắt thông báo
+    current_datetime = datetime.datetime.now()
+    for row in rows:
+        timetoturnon = row.TimeToTurnOn
+        # Nếu đã hết thời gian tắt thông báo
+        if current_datetime > timetoturnon:
+            cursor.execute("DELETE FROM OffNotification WHERE CameraID = ? AND CustomerID = ?", 
+                           (camera_id, row.CustomerID))
+            conn.commit()
+    
+    # Lấy danh sách quyền từ camera_id
+    cursor.execute(f"""
+                        SELECT hm.AdminID, hm.HomeMemberID
+                        FROM HomeMember hm
+                        INNER JOIN Camera cam ON hm.HomeID = cam.HomeID
+                        WHERE cam.CameraID = {camera_id};
+                    """)
+    rows = cursor.fetchall()
+    customer_ids = []
+
+    for row in rows:
+        customer_ids.append(row.AdminID)
+        customer_ids.append(row.HomeMemberID)
+    customer_ids = list(set(customer_ids))
+    
+    cursor.execute("SELECT * FROM OffNotification WHERE CameraID = ?", (camera_id,))
+    off_customer_ids = [row.CustomerID for row in cursor.fetchall()]
+
+    on_customer_ids = [customer_id for customer_id in customer_ids if customer_id not in off_customer_ids]
+    # Lấy danh sách FCM
+    fcm_list = []
+    for i in on_customer_ids:
+        cursor.execute("SELECT FCM FROM Customer WHERE CustomerID = ?",(i,))
+        fcm_list.append(cursor.fetchone().FCM)
+    
+    print(f"Trả về danh sách FCM của các User có quyền coi camera {camera_id}")
+    return json.dumps(fcm_list), 200
+
+
+####################################################################################################
+
 
 
 ####################################################################################################
