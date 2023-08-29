@@ -360,39 +360,39 @@ def capnhat_matkhau():
 
 #---------------------------------------------------------------------------------------------------
 
-@app.route('/api/account/post-fcm', methods=['POST'])
-def post_fcm():
-    data = request.get_json()
-    key = data.get('key')
-    if key not in api_keys:
-        print('Sai key')
-        return jsonify({'message': 'Sai key'}), 400
+# @app.route('/api/account/post-fcm', methods=['POST'])
+# def post_fcm():
+#     data = request.get_json()
+#     key = data.get('key')
+#     if key not in api_keys:
+#         print('Sai key')
+#         return jsonify({'message': 'Sai key'}), 400
     
-    fcm = data.get('fcm')
-    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+#     fcm = data.get('fcm')
+#     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     
-    print("fcm:", fcm, ' - ', type(fcm))
-    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+#     print("fcm:", fcm, ' - ', type(fcm))
+#     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
-    # Từ Username lấy CustomerID trong bảng Customer
-    if "@" in ten_tai_khoan_email_sdt:
-        cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
-    elif ten_tai_khoan_email_sdt.isdigit():
-        cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
-    else:
-        cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
-    results = cursor.fetchall()
-    customerid = results[0][0]
-    try:
-        cursor.execute("UPDATE Customer SET FCM = ? WHERE CustomerID = ?", fcm, customerid)
-        conn.commit()
-        msg = f"Đã update FCM cho User {ten_tai_khoan_email_sdt}"
-        print(msg)
-        return jsonify({'message': msg}), 200
-    except:
-        msg = f"Lỗi! Không update được FCM cho User {ten_tai_khoan_email_sdt}"
-        print(msg)
-        return jsonify({'message': msg}), 500
+#     # Từ Username lấy CustomerID trong bảng Customer
+#     if "@" in ten_tai_khoan_email_sdt:
+#         cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+#     elif ten_tai_khoan_email_sdt.isdigit():
+#         cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+#     else:
+#         cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+#     results = cursor.fetchall()
+#     customerid = results[0][0]
+#     try:
+#         cursor.execute("UPDATE Customer SET FCM = ? WHERE CustomerID = ?", fcm, customerid)
+#         conn.commit()
+#         msg = f"Đã update FCM cho User {ten_tai_khoan_email_sdt}"
+#         print(msg)
+#         return jsonify({'message': msg}), 200
+#     except:
+#         msg = f"Lỗi! Không update được FCM cho User {ten_tai_khoan_email_sdt}"
+#         print(msg)
+#         return jsonify({'message': msg}), 500
             
 ####################################################################################################
 @app.route('/api/ads/banner-img', methods=['GET'])
@@ -1745,8 +1745,8 @@ def get_img_camera():
 
 ####################################################################################################
 
-@app.route('/api/notification/get', methods=['POST'])
-def notification_get():
+@app.route('/api/notification/get-by-camera', methods=['POST'])
+def notification_get_by_camera():
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
@@ -1757,34 +1757,12 @@ def notification_get():
     # print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     camera_id = data.get('camera_id')
     print("camera_id:", camera_id, ' - ', type(camera_id))
-    
-    # # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
-    # try:
-    #     if "@" in ten_tai_khoan_email_sdt:
-    #         cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
-    #     elif ten_tai_khoan_email_sdt.isdigit():
-    #         cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
-    #     else:
-    #         cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
-            
-    #     customerid = cursor.fetchone().CustomerID
-    #     cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
-    #     username = cursor.fetchone().Username
-    # except:
-    #     msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
-    #     print(msg)
-    #     return jsonify({'message': msg}), 404
-    
-    # Lấy danh sách các thông báo
     # try:
     cursor.execute("SELECT * FROM Notification WHERE CameraID = ? ORDER BY Date DESC", camera_id)
     notifications = cursor.fetchall()
     notification_list = []
     for notification in notifications:
-        # Chuyển ảnh sang base64
-        # img = cv2.imread(notification.ImagePath)
-        # _, image_data = cv2.imencode('.jpg', img)
-        # base64_image = base64.b64encode(image_data).decode("utf-8")
+
         
         notification_list.append({
             'ID_Notification': notification.ID_Notification,
@@ -1792,7 +1770,7 @@ def notification_get():
             'Title': notification.Title,
             'Body': notification.Body,
             'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
-            # 'BASE64': base64_image,
+
         })
     print(f"Trả về list các thông báo của Camera {camera_id}...")
     return json.dumps(notification_list), 200
@@ -1800,7 +1778,74 @@ def notification_get():
     #     msg = f"Lỗi! Không lấy được list các thông báo của User {username}"
     #     print(msg)
     #     return jsonify({'message': msg}), 404
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/notification/get-by-user', methods=['POST'])
+def notification_get_by_user():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
     
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    # camera_id = data.get('camera_id')
+    # print("camera_id:", camera_id, ' - ', type(camera_id))
+
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    
+    cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ?", (customerid,))
+    home_ids = [row.HomeID for row in cursor.fetchall()]
+
+    # Lặp qua từng HomeID và lấy danh sách CameraID từ đó
+    camera_ids = []
+    for home_id in home_ids:
+        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
+        camera_ids.extend([row.CameraID for row in cursor.fetchall()])
+    
+    # try:
+    params = ','.join('?' for _ in camera_ids)
+    # cursor.execute(f"SELECT * FROM Notification WHERE CameraID IN ({params}) ORDER BY Date DESC", camera_id)
+    cursor.execute(f"""
+                        SELECT n.ID_Notification, n.CameraID, n.Type, n.Title, n.Body, n.Date, n.ImagePath, c.CameraName                     
+                        FROM Notification n
+                        INNER JOIN Camera c ON n.CameraID = c.CameraID
+                        WHERE n.CameraID IN ({params})
+                        ORDER BY n.Date DESC
+                    """, camera_ids)
+    notifications = cursor.fetchall()
+    notification_list = []
+    for notification in notifications:
+
+        
+        notification_list.append({
+            'CameraName': notification.CameraName,
+            'ID_Notification': notification.ID_Notification,
+            'Type': notification.Type,
+            'Title': notification.Title,
+            'Body': notification.Body,
+            'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
+        })
+    print(f"Trả về list các thông báo của User {ten_tai_khoan_email_sdt}...")
+    return json.dumps(notification_list), 200
+   
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/notification/get-img', methods=['POST'])
