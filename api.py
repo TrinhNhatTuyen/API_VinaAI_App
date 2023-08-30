@@ -1865,7 +1865,8 @@ def get_img():
         cursor.execute("SELECT ImagePath FROM Notification WHERE ID_Notification = ?", id_notification)
         image_path = cursor.fetchone().ImagePath
         # Chuyển ảnh sang base64
-        img = cv2.cvtColor(cv2.imread(image_path), cv2.COLOR_BGR2RGB)
+        img = cv2.imread(image_path)
+        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         _, image_data = cv2.imencode('.jpg', img)
         base64_image = base64.b64encode(image_data).decode("utf-8")
         
@@ -1971,7 +1972,7 @@ def get_lockrecord():
     # Lấy thông tin ngày, tạo tên ảnh
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%H%M%S_%d%m%Y")
-    folder_path = f"/Notification/{camera_id}/{notification_type}/"
+    folder_path = f"Notification/{camera_id}/"
     img_path = folder_path + f"{time_string}.jpg" ##### <<<<<<<<<<<<<<<<<<<<<<<<<<<
     
     # Kiểm tra thư mục ảnh thông báo tồn tại chưa
@@ -1982,10 +1983,10 @@ def get_lockrecord():
     # Chuyển base64 sang ảnh
     anh_base64 = np.frombuffer(base64.b64decode(anh_base64), dtype=np.uint8)
     anh_base64 = cv2.imdecode(anh_base64, cv2.IMREAD_ANYCOLOR)
-    image_rgb = cv2.cvtColor(anh_base64, cv2.COLOR_BGR2RGB)
+    # image_rgb = cv2.cvtColor(anh_base64, cv2.COLOR_BGR2RGB)
     
-    # Lưu ảnh vào folder "/{camera_id}/{notification_type}/"
-    cv2.imwrite(img_path, image_rgb)
+    # Lưu ảnh vào folder "Notification/{camera_id}/"
+    cv2.imwrite(img_path, anh_base64)
     
     #----------------------------------------------------------------------------------------------
     
@@ -2042,6 +2043,16 @@ def get_fcm_to_send():
     for row in rows:
         customer_ids.append(row.AdminID)
         customer_ids.append(row.HomeMemberID)
+        
+    # Lấy ID Admin nếu căn hộ k có member
+    cursor.execute(f"""
+                        SELECT ch.CustomerID
+                        FROM Camera c
+                        INNER JOIN CustomerHome ch ON c.HomeID = ch.HomeID
+                        WHERE c.CameraID = {camera_id}
+                    """)
+    customer_ids.append(cursor.fetchone().CustomerID)
+    
     customer_ids = list(set(customer_ids))
     
     cursor.execute("SELECT * FROM OffNotification WHERE CameraID = ?", (camera_id,))
