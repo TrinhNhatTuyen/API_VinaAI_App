@@ -830,27 +830,36 @@ def delete_lock():
     lockid = data.get('lockid')
     print("lockid:", lockid, ' - ', type(lockid))
     
-    # Xóa khóa (LockHistory)
-    try:
-        cursor.execute("DELETE FROM LockHistory WHERE LockID = ?", lockid)
-        msg = f"Xóa thành công khóa {lockid} trong bảng LockHistory"
-        print(msg)
-    except Exception as e:
-        conn.rollback()
-        msg = f"Không xóa được khóa {lockid} trong bảng LockHistory"
-        print(msg)
-        return jsonify({'message': msg}), 500
-    
     # Xóa khóa (Lock)
     try:
+        # cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", lockid)
+        # if cursor.fetchone():
         cursor.execute("DELETE FROM Lock WHERE LockID = ?", lockid)
         conn.commit()
         msg = f"Xóa thành công khóa {lockid} trong bảng Lock"
         print(msg)
-        return jsonify({'message': msg}), 200
+        # return jsonify({'message': msg}), 200
     except Exception as e:
         conn.rollback()
         msg = f"Không xóa được khóa {lockid} trong bảng Lock"
+        print(msg)
+        return jsonify({'message': msg}), 500
+
+    # Xóa khóa (LockHistory)
+    try:
+        cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", lockid)
+        if cursor.fetchone():
+            cursor.execute("DELETE FROM LockHistory WHERE LockID = ?", lockid)
+            msg = f"Xóa thành công khóa {lockid} trong bảng LockHistory"
+            print(msg)
+            return jsonify({'message': msg}), 200
+        else:
+            msg = f"Khóa {lockid} không có lịch sử để xóa"
+            print(msg)
+            return jsonify({'message': msg}), 200
+    except Exception as e:
+        conn.rollback()
+        msg = f"Không xóa được khóa {lockid} trong bảng LockHistory"
         print(msg)
         return jsonify({'message': msg}), 500
     
