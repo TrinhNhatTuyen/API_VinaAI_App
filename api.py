@@ -1902,9 +1902,9 @@ def turn_off_notification():
     return jsonify({'message': msg}), 201
 
 #---------------------------------------------------------------------------------------------------
-
-@app.route('/api/notification/send-by-admin', methods=['POST'])
-def send_notification_by_admin():
+# CHƯA TEST
+@app.route('/api/notification/send-to-user', methods=['POST'])
+def send_to_user():
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
@@ -1946,9 +1946,9 @@ def send_notification_by_admin():
     print(msg)
     return jsonify({'message': msg}), 201
 #---------------------------------------------------------------------------------------------------
-
-@app.route('/api/notification/get', methods=['POST'])
-def get_user_notification():
+# CHƯA TEST
+@app.route('/api/notification/get-all', methods=['POST'])
+def get_all_notifications():
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
