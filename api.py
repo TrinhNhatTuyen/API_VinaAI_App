@@ -1848,6 +1848,15 @@ def alert_get_by_camera():
             'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
 
         })
+    
+    # Trả về trường "Seen" để biết thông báo đã xem chưa
+    for i in notification_list:
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        if cursor.fetchone():
+            i['Seen'] = 'True'
+        else:
+            i['Seen'] = 'False'
+            
     print(f"Trả về list các cảnh báo của Camera {camera_id}...")
     return json.dumps(notification_list), 200
     # except:
@@ -1922,6 +1931,15 @@ def alert_get_by_user():
             'Body': notification.Body,
             'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
         })
+        
+    # Trả về trường "Seen" để biết thông báo đã xem chưa
+    for i in notification_list:
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        if cursor.fetchone():
+            i['Seen'] = 'True'
+        else:
+            i['Seen'] = 'False'
+            
     print(f"Trả về list các cảnh báo của User {ten_tai_khoan_email_sdt}...")
     return json.dumps(notification_list), 200
    
@@ -1936,26 +1954,51 @@ def get_img():
         return jsonify({'message': 'Sai key'}), 400
     
     id_notification = data.get('id_notification')
-    
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     print("id_notification:", id_notification, ' - ', type(id_notification))
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
     # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
     try:
-        cursor.execute("SELECT ImagePath FROM Notification WHERE ID_Notification = ?", id_notification)
-        image_path = cursor.fetchone().ImagePath
-        # Chuyển ảnh sang base64
-        img = cv2.imread(image_path)
-        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        _, image_data = cv2.imencode('.jpg', img)
-        base64_image = base64.b64encode(image_data).decode("utf-8")
-        
-        # Trả về chuỗi base64 cho app
-        print("Vừa trả về chuỗi base64")
-        return Response(base64_image, mimetype='text/plain')
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # username = cursor.fetchone().Username
     except:
-        msg = f"Lỗi! Không tìm thấy thông báo có ID {id_notification}"
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
-        return Response(msg, mimetype='text/plain')
+        return jsonify({'message': msg}), 404
+    
+    # try:
+    # Lấy ảnh trong từ path và chuyển thành base64
+    cursor.execute("SELECT ImagePath FROM Notification WHERE ID_Notification = ?", id_notification)
+    image_path = cursor.fetchone().ImagePath
+    # Chuyển ảnh sang base64
+    img = cv2.imread(image_path)
+    # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    _, image_data = cv2.imencode('.jpg', img)
+    base64_image = base64.b64encode(image_data).decode("utf-8")
+    #----------------------------------------------------------------------
+    # Đánh dấu là đã đọc
+    cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (id_notification, customerid))
+    if cursor.fetchone():
+        cursor.execute("INSERT INTO Seen (ID_Notification, CustomerID) VALUES (?,?)", (id_notification, customerid))
+        # cursor.execute("UPDATE Notification SET Seen = ? WHERE ID_Notification = ?", ('seen', id_notification))
+        conn.commit()
+    #----------------------------------------------------------------------
+    # Trả về chuỗi base64 cho app
+    print("Vừa trả về chuỗi base64")
+    return Response(base64_image, mimetype='text/plain')
+    # except:
+    #     msg = f"Lỗi! Không tìm thấy thông báo có ID {id_notification}"
+    #     print(msg)
+    #     return Response(msg, mimetype='text/plain')
 
 #---------------------------------------------------------------------------------------------------
 
@@ -2125,117 +2168,134 @@ def get_all_notifications():
             'Body': notification.Body,
             'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
         })
+        
+    # Trả về trường "Seen" để biết thông báo đã xem chưa
+    for i in notification_list:
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        if cursor.fetchone():
+            i['Seen'] = 'True'
+        else:
+            i['Seen'] = 'False'
+            
     print(f"Trả về list các thông báo của User {ten_tai_khoan_email_sdt}...")
     return json.dumps(notification_list), 200
 
 #---------------------------------------------------------------------------------------------------
 
-# @app.route('/api/notification/set-seen', methods=['POST'])
-# def set_seen():
-#     data = request.get_json()
-#     key = data.get('key')
-#     if key not in api_keys:
-#         print('Sai key')
-#         return jsonify({'message': 'Sai key'}), 400
+@app.route('/api/notification/set-seen', methods=['POST'])
+def set_seen():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
     
-#     id_notification = data.get('id_notification')
-#     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
-#     print("id_notification:", id_notification, ' - ', type(id_notification))
-#     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    id_notification = data.get('id_notification')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    print("id_notification:", id_notification, ' - ', type(id_notification))
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
-#     # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
-#     try:
-#         if "@" in ten_tai_khoan_email_sdt:
-#             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
-#         elif ten_tai_khoan_email_sdt.isdigit():
-#             cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
-#         else:
-#             cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
-#         customerid = cursor.fetchone().CustomerID
-#         cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
-#         # username = cursor.fetchone().Username
-#     except:
-#         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
-#         print(msg)
-#         return jsonify({'message': msg}), 404
-
-#     cursor.execute("INSERT INTO Seen (ID_Notification, CustomerID) VALUES (?,?,?)", (id_notification, customerid))
-#     # cursor.execute("UPDATE Notification SET Seen = ? WHERE ID_Notification = ?", ('seen', id_notification))
-#     conn.commit()
-#     msg = f"Đã set seen thông báo có ID {id_notification}"
-#     print(msg)
-#     return jsonify({'message': msg}), 200
-
-# @app.route('/api/notification/set-all-seen', methods=['POST'])
-# def set_all_seen():
-#     data = request.get_json()
-#     key = data.get('key')
-#     if key not in api_keys:
-#         print('Sai key')
-#         return jsonify({'message': 'Sai key'}), 400
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
     
-#     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
-#     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (id_notification, customerid))
+    if cursor.fetchone():
+        cursor.execute("INSERT INTO Seen (ID_Notification, CustomerID) VALUES (?,?)", (id_notification, customerid))
+        # cursor.execute("UPDATE Notification SET Seen = ? WHERE ID_Notification = ?", ('seen', id_notification))
+        conn.commit()
+    msg = f"Đã set seen thông báo có ID {id_notification}"
+    print(msg)
+    return jsonify({'message': msg}), 200
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/notification/set-all-seen', methods=['POST'])
+def set_all_seen():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
     
-#     # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
-#     try:
-#         if "@" in ten_tai_khoan_email_sdt:
-#             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
-#         elif ten_tai_khoan_email_sdt.isdigit():
-#             cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
-#         else:
-#             cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
-#         customerid = cursor.fetchone().CustomerID
-#         cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
-#         # username = cursor.fetchone().Username
-#     except:
-#         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
-#         print(msg)
-#         return jsonify({'message': msg}), 404
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
 
 
-#     # Lấy ID nhà
-#     cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ?", (customerid,))
-#     home_ids = [row.HomeID for row in cursor.fetchall()]
-#     # Lấy ID nhà được thêm quyền
-#     cursor.execute("SELECT HomeID FROM HomeMember WHERE HomeMemberID = ?", (customerid,))
-#     home_ids = home_ids + [row.HomeID for row in cursor.fetchall()]
+    # Lấy ID nhà
+    cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ?", (customerid,))
+    home_ids = [row.HomeID for row in cursor.fetchall()]
+    # Lấy ID nhà được thêm quyền
+    cursor.execute("SELECT HomeID FROM HomeMember WHERE HomeMemberID = ?", (customerid,))
+    home_ids = home_ids + [row.HomeID for row in cursor.fetchall()]
 
-#     # Lặp qua từng HomeID và lấy danh sách CameraID từ đó
-#     camera_ids = []
-#     for home_id in home_ids:
-#         cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
-#         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
+    # Lặp qua từng HomeID và lấy danh sách CameraID từ đó
+    camera_ids = []
+    for home_id in home_ids:
+        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
+        camera_ids.extend([row.CameraID for row in cursor.fetchall()])
         
-#     # try:
-#     # cursor.execute(f"SELECT * FROM Notification WHERE CameraID IN ({params}) ORDER BY Date DESC", camera_id)
-#     """
-#         Biết mỗi hàng trong bảng Notification nếu cột CameraID có giá trị thì cột CustomerID là Null và ngược lại, 
-#         Lấy ra các hàng có CameraID nằm trong list camera_ids, 
-#             hoặc có CustomerID = customerid, 
-#         Với các hàng có CameraID nằm trong list camera_ids thì phải lấy ra CameraName, 
-#             nếu không thì trả về CameraName là null
-#     """
-#     cursor.execute(f"""
-#                         SELECT
-#                             N.ID_Notification
-#                         FROM
-#                             Notification N
-#                         LEFT JOIN
-#                             Camera C ON N.CameraID = C.CameraID
-#                         WHERE
-#                             N.CameraID IN ({', '.join(map(str, camera_ids))}) OR N.CustomerID = {customerid}
-#                         ORDER BY N.Date DESC
-#                     """)
-#     notifications = cursor.fetchall()
+    # try:
+    # cursor.execute(f"SELECT * FROM Notification WHERE CameraID IN ({params}) ORDER BY Date DESC", camera_id)
+    """
+        Biết mỗi hàng trong bảng Notification nếu cột CameraID có giá trị thì cột CustomerID là Null và ngược lại, 
+        Lấy ra các hàng có CameraID nằm trong list camera_ids, 
+            hoặc có CustomerID = customerid, 
+        Với các hàng có CameraID nằm trong list camera_ids thì phải lấy ra CameraName, 
+            nếu không thì trả về CameraName là null
+    """
+    cursor.execute(f"""
+                        SELECT
+                            N.ID_Notification
+                        FROM
+                            Notification N
+                        LEFT JOIN
+                            Camera C ON N.CameraID = C.CameraID
+                        WHERE
+                            N.CameraID IN ({', '.join(map(str, camera_ids))}) OR N.CustomerID = {customerid}
+                        ORDER BY N.Date DESC
+                    """)
+    results = cursor.fetchall()
     
-#     cursor.execute("UPDATE Notification SET Seen = ? WHERE CustomerID = ?", ('seen', customerid))
-#     conn.commit()
-#     msg = f"Đã set seen các thông báo của User {ten_tai_khoan_email_sdt}"
-#     print(msg)
-#     return jsonify({'message': msg}), 200
+    cursor.execute("DELETE FROM Seen WHERE CustomerID = ?", (customerid,))
+    conn.commit()
+    for result in results:
+        cursor.execute("INSERT INTO Seen (ID_Notification, CustomerID) VALUES (?, ?)", (result.ID_Notification, customerid))
+    conn.commit()
+    msg = f"Đã set seen tất cả thông báo của User {ten_tai_khoan_email_sdt}"
+    print(msg)
+    return jsonify({'message': msg}), 200
+
 #########################################################################################################################
 #########################################################################################################################
 
