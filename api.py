@@ -1806,7 +1806,8 @@ def get_camera():
             row = cursor.fetchone()
             if row:
                 camera['LastestAlert'] = row.Body
-                camera['Date'] = row.Date.strftime("%Y-%m-%d %H:%M:%S")
+                # camera['Date'] = " - " + row.Date.strftime("%Y-%m-%d %H:%M:%S")
+                camera['Date'] = " - " + row.Date.strftime("%d-%m-%Y %Hh%M'%S\"")
             else:
                 camera['LastestAlert'] = None
                 camera['Date'] = None
@@ -1975,26 +1976,34 @@ def get_img():
         print(msg)
         return jsonify({'message': msg}), 404
     
-    # try:
-    # Lấy ảnh trong từ path và chuyển thành base64
-    cursor.execute("SELECT ImagePath FROM Notification WHERE ID_Notification = ?", id_notification)
-    image_path = cursor.fetchone().ImagePath
-    # Chuyển ảnh sang base64
-    img = cv2.imread(image_path)
-    # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    _, image_data = cv2.imencode('.jpg', img)
-    base64_image = base64.b64encode(image_data).decode("utf-8")
     #----------------------------------------------------------------------
     # Đánh dấu là đã đọc
     cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (id_notification, customerid))
-    if cursor.fetchone():
+    if not cursor.fetchone():
         cursor.execute("INSERT INTO Seen (ID_Notification, CustomerID) VALUES (?,?)", (id_notification, customerid))
         # cursor.execute("UPDATE Notification SET Seen = ? WHERE ID_Notification = ?", ('seen', id_notification))
         conn.commit()
+    #----------------------------------------------------------------------    
+    # try:
+    # Lấy ảnh trong từ path và chuyển thành base64
+    cursor.execute("SELECT ImagePath FROM Notification WHERE ID_Notification = ?", id_notification)
+    row = cursor.fetchone()
+    if row:
+        image_path = row.ImagePath
+        # Chuyển ảnh sang base64
+        img = cv2.imread(image_path)
+        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        _, image_data = cv2.imencode('.jpg', img)
+        base64_image = base64.b64encode(image_data).decode("utf-8")
+        # Trả về chuỗi base64 cho app
+        print("Vừa trả về chuỗi base64")
+        return Response(base64_image, mimetype='text/plain')
+    else:
+        msg = "Thông báo này không có ảnh"
+        print(msg)
+        return Response(msg, mimetype='text/plain')
     #----------------------------------------------------------------------
-    # Trả về chuỗi base64 cho app
-    print("Vừa trả về chuỗi base64")
-    return Response(base64_image, mimetype='text/plain')
+    
     # except:
     #     msg = f"Lỗi! Không tìm thấy thông báo có ID {id_notification}"
     #     print(msg)
@@ -2126,7 +2135,7 @@ def get_all_notifications():
     cursor.execute("SELECT HomeID FROM HomeMember WHERE HomeMemberID = ?", (customerid,))
     home_ids = home_ids + [row.HomeID for row in cursor.fetchall()]
 
-    # Lặp qua từng HomeID và lấy danh sách CameraID từ đó
+    # Lặp qua từng HomeID và lấy danh sách CameraID từ đó (lấy tất cả CameraID mà User có quyền truy cập)
     camera_ids = []
     for home_id in home_ids:
         cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
@@ -2169,13 +2178,15 @@ def get_all_notifications():
             'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
         })
         
-    # Trả về trường "Seen" để biết thông báo đã xem chưa
     for i in notification_list:
+        # Trả về trường "Seen" để biết thông báo đã xem chưa
         cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
         if cursor.fetchone():
             i['Seen'] = 'True'
         else:
             i['Seen'] = 'False'
+        # Trả về hình ảnh của thông báo nếu có
+        
             
     print(f"Trả về list các thông báo của User {ten_tai_khoan_email_sdt}...")
     return json.dumps(notification_list), 200
@@ -2251,7 +2262,6 @@ def set_all_seen():
         print(msg)
         return jsonify({'message': msg}), 404
 
-
     # Lấy ID nhà
     cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ?", (customerid,))
     home_ids = [row.HomeID for row in cursor.fetchall()]
@@ -2296,6 +2306,59 @@ def set_all_seen():
     print(msg)
     return jsonify({'message': msg}), 200
 
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/notification/count-new', methods=['POST'])
+def count_new_ntf():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+
+
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    
+    # Lấy ID nhà
+    cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ?", (customerid,))
+    home_ids = [row.HomeID for row in cursor.fetchall()]
+    # Lấy ID nhà được thêm quyền
+    cursor.execute("SELECT HomeID FROM HomeMember WHERE HomeMemberID = ?", (customerid,))
+    home_ids = home_ids + [row.HomeID for row in cursor.fetchall()]
+
+    # Lặp qua từng HomeID và lấy danh sách CameraID từ đó (lấy tất cả CameraID mà User có quyền truy cập)
+    camera_ids = []
+    for home_id in home_ids:
+        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
+        camera_ids.extend([row.CameraID for row in cursor.fetchall()])
+    
+    cursor.execute(f"""SELECT COUNT(*) FROM Notification 
+                    WHERE CameraID IN ({', '.join(map(str, camera_ids))}) OR CustomerID = {customerid}
+                """)
+    all_ntf = cursor.fetchone()[0]
+    cursor.execute(f"""SELECT COUNT(*) FROM Seen 
+                        WHERE CustomerID = {customerid}
+                    """)
+    count = all_ntf - cursor.fetchone()[0]
+    return jsonify({"message": count}), 200
 #########################################################################################################################
 #########################################################################################################################
 
