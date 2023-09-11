@@ -262,8 +262,7 @@ def logout():
     
     fcm = data.get('fcm')
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')   
-    
-    # print("fcm:", fcm, ' - ', type(fcm))
+
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
     # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
