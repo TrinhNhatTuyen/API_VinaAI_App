@@ -238,9 +238,13 @@ def check_account():
     results = cursor.fetchall()
     customerid = results[0][0]
     try:
-        cursor.execute("INSERT INTO CustomerDevice (CustomerID, FCM) VALUES (?, ?)", (customerid, fcm))
-        print(f"Đã thêm FCM cho User {ten_tai_khoan_email_sdt}")
-        conn.commit()
+        cursor.execute("SELECT 1 FROM CustomerDevice WHERE CustomerID = ? AND FCM = ?", (customerid, fcm))
+        if cursor.fetchone():
+            print("Cặp giá trị CustomerID và FCM đã tồn tại, k thực hiện thêm mới")
+        else:
+            cursor.execute("INSERT INTO CustomerDevice (CustomerID, FCM) VALUES (?, ?)", (customerid, fcm))
+            print(f"Đã thêm FCM cho User {ten_tai_khoan_email_sdt}")
+            conn.commit()
     except:
         msg = f"Lỗi! Không thêm được FCM cho User {ten_tai_khoan_email_sdt}"
         print(msg)
@@ -1860,7 +1864,7 @@ def alert_get_by_camera():
             'Title': notification.Title,
             'Body': notification.Body,
             'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
-
+            
         })
     
     # Trả về trường "Seen" để biết thông báo đã xem chưa
