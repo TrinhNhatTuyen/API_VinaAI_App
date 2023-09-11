@@ -909,7 +909,7 @@ def delete_lock():
     try:
         # cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", lockid)
         # if cursor.fetchone():
-        cursor.execute("DELETE FROM Lock WHERE LockID = ?", lockid)
+        cursor.execute("DELETE FROM Lock WHERE LockID = ?", (lockid,))
         conn.commit()
         msg = f"Xóa thành công khóa {lockid} trong bảng Lock"
         print(msg)
@@ -920,11 +920,23 @@ def delete_lock():
         print(msg)
         return jsonify({'message': msg}), 500
 
+    # Xóa khóa (Camera)
+    try:
+        cursor.execute("UPDATE Camera SET LockID = NULL WHERE LockID = ?", (lockid,))
+        conn.commit()
+        msg = f"Xóa thành công khóa {lockid} trong bảng Camera"
+        print(msg)
+    except Exception as e:
+        conn.rollback()
+        msg = f"Không xóa được khóa {lockid} trong bảng Lock"
+        print(msg)
+        return jsonify({'message': msg}), 500
+    
     # Xóa khóa (LockHistory)
     try:
-        cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", lockid)
+        cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", (lockid,))
         if cursor.fetchone():
-            cursor.execute("DELETE FROM LockHistory WHERE LockID = ?", lockid)
+            cursor.execute("DELETE FROM LockHistory WHERE LockID = ?", (lockid,))
             msg = f"Xóa thành công khóa {lockid} trong bảng LockHistory"
             print(msg)
             return jsonify({'message': msg}), 200
@@ -2358,7 +2370,8 @@ def count_new_ntf():
                         WHERE CustomerID = {customerid}
                     """)
     count = all_ntf - cursor.fetchone()[0]
-    return Response(count, mimetype='text/plain'), 200
+    return jsonify({"message": count}), 200
+    # return Response(str(count), mimetype='text/plain'), 200
 #########################################################################################################################
 #########################################################################################################################
 
