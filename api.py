@@ -228,7 +228,7 @@ def check_account():
             print(msg)
             return jsonify({'message': msg}), 404
 
-    #------------------------------------ Post FCM ------------------------------------
+    #------------------------------------ Thêm FCM ------------------------------------
     if "@" in ten_tai_khoan_email_sdt:
         cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
     elif ten_tai_khoan_email_sdt.isdigit():
@@ -238,11 +238,11 @@ def check_account():
     results = cursor.fetchall()
     customerid = results[0][0]
     try:
-        cursor.execute("UPDATE Customer SET FCM = ? WHERE CustomerID = ?", fcm, customerid)
-        print(f"Đã update FCM cho User {ten_tai_khoan_email_sdt}")
+        cursor.execute("INSERT INTO CustomerDevice (CustomerID, FCM) VALUES (?, ?)", (customerid, fcm))
+        print(f"Đã thêm FCM cho User {ten_tai_khoan_email_sdt}")
         conn.commit()
     except:
-        msg = f"Lỗi! Không update được FCM cho User {ten_tai_khoan_email_sdt}"
+        msg = f"Lỗi! Không thêm được FCM cho User {ten_tai_khoan_email_sdt}"
         print(msg)
         return jsonify({'message': msg}), 404
     #-----------------------------------------------------------------------------------
@@ -250,7 +250,45 @@ def check_account():
     print(msg)
     return jsonify({'message': msg}), 200
 
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/account/logout', methods=['POST'])
+def logout():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
     
+    fcm = data.get('fcm')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')   
+    
+    # print("fcm:", fcm, ' - ', type(fcm))
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        return jsonify({'message': msg}), 404
+    
+    cursor.execute("DELETE FROM CustomerDevice WHERE CustomerID = ? AND FCM = ?", (customerid, fcm))
+    conn.commit()
+    
+    msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+    print(msg)
+    return jsonify({'message': msg}), 200
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/account/lay-maxacnhan', methods=['POST'])
@@ -373,7 +411,7 @@ def set_avatar():
     
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -383,7 +421,7 @@ def set_avatar():
             cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
         customerid = cursor.fetchone().CustomerID
-        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
         # username = cursor.fetchone().Username
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
@@ -411,7 +449,7 @@ def get_avatar():
     
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -421,7 +459,7 @@ def get_avatar():
             cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
         customerid = cursor.fetchone().CustomerID
-        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
         # username = cursor.fetchone().Username
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
@@ -432,42 +470,6 @@ def get_avatar():
     avatar_base64 = cursor.fetchone().Avatar
     print("Vừa trả về chuỗi base64 của avatar")
     return Response(avatar_base64, mimetype='text/plain')
-
-#---------------------------------------------------------------------------------------------------
-
-# @app.route('/api/account/post-fcm', methods=['POST'])
-# def post_fcm():
-#     data = request.get_json()
-#     key = data.get('key')
-#     if key not in api_keys:
-#         print('Sai key')
-#         return jsonify({'message': 'Sai key'}), 400
-    
-#     fcm = data.get('fcm')
-#     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
-    
-#     print("fcm:", fcm, ' - ', type(fcm))
-#     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
-    
-#     # Từ Username lấy CustomerID trong bảng Customer
-#     if "@" in ten_tai_khoan_email_sdt:
-#         cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
-#     elif ten_tai_khoan_email_sdt.isdigit():
-#         cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
-#     else:
-#         cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
-#     results = cursor.fetchall()
-#     customerid = results[0][0]
-#     try:
-#         cursor.execute("UPDATE Customer SET FCM = ? WHERE CustomerID = ?", fcm, customerid)
-#         conn.commit()
-#         msg = f"Đã update FCM cho User {ten_tai_khoan_email_sdt}"
-#         print(msg)
-#         return jsonify({'message': msg}), 200
-#     except:
-#         msg = f"Lỗi! Không update được FCM cho User {ten_tai_khoan_email_sdt}"
-#         print(msg)
-#         return jsonify({'message': msg}), 500
             
 ####################################################################################################
 @app.route('/api/ads/banner-img', methods=['GET'])
@@ -624,7 +626,7 @@ def homeinfo():
     
     # Lấy CustomerID
     try:
-        # Từ Username lấy CustomerID trong bảng Customer
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -783,7 +785,7 @@ def addhome():
         print("homeaddress:", homeaddress, ' - ', type(homeaddress))
         print("districtid:", districtid, ' - ', type(districtid))
         
-        # Từ Username lấy CustomerID trong bảng Customer
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -834,7 +836,7 @@ def lockinfo():
     #-------------------------------------------------
     # Lấy CustomerID
     try:
-        # Từ Username lấy CustomerID trong bảng Customer
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -972,7 +974,7 @@ def addlock():
     
     #-------------------------------------------------
     try:    
-        # Từ Username lấy CustomerID trong bảng Customer
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -1278,7 +1280,7 @@ def update_history():
     print("lock_id:", lock_id, ' - ', type(lock_id))
     print("history_code:", history_code, ' - ', type(history_code))
     
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -1373,7 +1375,7 @@ def check_existed_passcode():
     print("lockid:", lock_id, ' - ', type(lock_id))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -1417,7 +1419,7 @@ def add_custom_passcode():
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     print("passcode:", passcode, ' - ', type(passcode))
 
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -1515,7 +1517,7 @@ def change_passcode():
     print("lockid:", lock_id, ' - ', type(lock_id))
     print("new_passcode:", new_passcode, ' - ', type(new_passcode))
 
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -1596,7 +1598,7 @@ def delete_passcode():
     print("lockid:", lock_id, ' - ', type(lock_id))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -1719,7 +1721,7 @@ def get_camera():
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -1892,7 +1894,7 @@ def alert_get_by_user():
     # camera_id = data.get('camera_id')
     # print("camera_id:", camera_id, ' - ', type(camera_id))
 
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -1902,8 +1904,8 @@ def alert_get_by_user():
             cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
         customerid = cursor.fetchone().CustomerID
-        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
-        username = cursor.fetchone().Username
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # username = cursor.fetchone().Username
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
@@ -1971,7 +1973,7 @@ def get_img():
     print("id_notification:", id_notification, ' - ', type(id_notification))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -1981,7 +1983,7 @@ def get_img():
             cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
         customerid = cursor.fetchone().CustomerID
-        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
         # username = cursor.fetchone().Username
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
@@ -2039,7 +2041,7 @@ def turn_off_notification():
     print("camera_id:", camera_id, ' - ', type(camera_id))
     print("minutes:", minutes, ' - ', type(minutes))
     
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -2084,7 +2086,7 @@ def send_to_user():
     print("title:", title, ' - ', type(title))
     print("body:", body, ' - ', type(body))
 
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -2123,7 +2125,7 @@ def get_all_notifications():
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
 
 
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -2133,7 +2135,7 @@ def get_all_notifications():
             cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
         customerid = cursor.fetchone().CustomerID
-        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
         # username = cursor.fetchone().Username
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
@@ -2218,7 +2220,7 @@ def set_seen():
     print("id_notification:", id_notification, ' - ', type(id_notification))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -2228,7 +2230,7 @@ def set_seen():
             cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
         customerid = cursor.fetchone().CustomerID
-        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
         # username = cursor.fetchone().Username
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
@@ -2257,7 +2259,7 @@ def set_all_seen():
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -2267,7 +2269,7 @@ def set_all_seen():
             cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
         customerid = cursor.fetchone().CustomerID
-        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
         # username = cursor.fetchone().Username
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
@@ -2332,7 +2334,7 @@ def count_new_ntf():
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
 
 
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID của admin trong bảng Customer
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -2342,7 +2344,7 @@ def count_new_ntf():
             cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
         customerid = cursor.fetchone().CustomerID
-        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
         # username = cursor.fetchone().Username
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
@@ -2526,11 +2528,10 @@ def get_fcm_to_send():
     off_customer_ids = [row.CustomerID for row in cursor.fetchall()]
 
     on_customer_ids = [customer_id for customer_id in customer_ids if customer_id not in off_customer_ids]
+    
     # Lấy danh sách FCM
-    fcm_list = []
-    for i in on_customer_ids:
-        cursor.execute("SELECT FCM FROM Customer WHERE CustomerID = ?",(i,))
-        fcm_list.append(cursor.fetchone().FCM)
+    cursor.execute("SELECT FCM FROM CustomerDevice WHERE CustomerID IN ({})".format(', '.join(map(str, on_customer_ids))))
+    fcm_list = [row.FCM for row in cursor]
     
     print(f"Trả về danh sách FCM của các User có quyền coi camera {camera_id}")
     return json.dumps(fcm_list), 200
