@@ -289,7 +289,7 @@ def logout():
     cursor.execute("DELETE FROM CustomerDevice WHERE CustomerID = ? AND FCM = ?", (customerid, fcm))
     conn.commit()
     
-    msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+    msg = f"Logout! {ten_tai_khoan_email_sdt}"
     print(msg)
     return jsonify({'message': msg}), 200
 #---------------------------------------------------------------------------------------------------
@@ -966,11 +966,13 @@ def addlock():
         return jsonify({'message': 'Sai key'}), 400
     
     lockid = data.get('lockid')
+    camera_id = data.get('camera_id')
     lockname = data.get('lockname')
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     homename = data.get('homename')
 
     print("lockid:", lockid, ' - ', type(lockid))
+    print("camera_id:", camera_id, ' - ', type(camera_id))
     print("lockname:", lockname, ' - ', type(lockname))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     print("homename:", homename, ' - ', type(homename))
@@ -1011,6 +1013,8 @@ def addlock():
     try:
         cursor.execute("INSERT INTO Lock (LockID, LockName, HomeID) VALUES (?, ?, ?)", (lockid, lockname, homeid))
         conn.commit()
+        if camera_id is not None:
+            cursor.execute("INSERT INTO Camera (LockID) VALUES (?)", (lockid,))
         msg = 'Thêm khóa thành công'
         print(msg)
         return jsonify({'message': msg}), 201
@@ -1019,6 +1023,51 @@ def addlock():
         print(msg)
         return jsonify({'message': msg}), 500
     
+#---------------------------------------------------------------------------------------------------
+
+# @app.route('/api/lock/addlock/camera-list', methods=['POST'])
+# def addlock():
+#     data = request.get_json()
+#     key = data.get('key')
+#     if key not in api_keys:
+#         print('Sai key')
+#         return jsonify({'message': 'Sai key'}), 400
+    
+#     homename = data.get('homename')
+#     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    
+#     print("homename:", homename, ' - ', type(homename))
+#     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+#     #-------------------------------------------------
+#     try:    
+#         # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
+#         if "@" in ten_tai_khoan_email_sdt:
+#             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+#         elif ten_tai_khoan_email_sdt.isdigit():
+#             cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+#         else:
+#             cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+#         results = cursor.fetchall()
+#         customer_id = results[0][0]
+        
+#         # Từ CustomerID lấy HomeID trong bảng CustomerHome
+#         cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ? AND HomeName = ?", (customer_id, homename))
+#         results = cursor.fetchall()
+#         homeid = results[0][0]
+#     except:
+#         msg = 'Không lấy được HomeID từ UserName'
+#         print(msg)
+#         return jsonify({'message': msg}), 500
+    
+#     #-------------------------------------------------
+    
+#     # Từ HomeID trong bảng CameraName, CameraID
+#     cursor.execute("SELECT CameraName, CameraID FROM Camera WHERE HomeID = ?", (homeid,))
+#     results = cursor.fetchall()
+#     homeid = results[0][0]
+       
 ####################################################################################################
 
 @app.route('/api/lock/add-home-member', methods=['POST'])
@@ -1863,7 +1912,7 @@ def alert_get_by_camera():
             'Type': notification.Type,
             'Title': notification.Title,
             'Body': notification.Body,
-            'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
+            'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
             
         })
     
@@ -1947,7 +1996,7 @@ def alert_get_by_user():
             'Type': notification.Type,
             'Title': notification.Title,
             'Body': notification.Body,
-            'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
+            'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
         })
         
     # Trả về trường "Seen" để biết thông báo đã xem chưa
@@ -2192,7 +2241,7 @@ def get_all_notifications():
             'Type': notification.Type,
             'Title': notification.Title,
             'Body': notification.Body,
-            'Date': notification.Date.strftime("%Y-%m-%d %H:%M:%S"),
+            'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
         })
         
     for i in notification_list:
