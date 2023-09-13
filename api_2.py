@@ -20,7 +20,8 @@ def connect_to_database():
                                   "Database=VinaAIAPP;"
                                   "uid=ngoi;"
                                   "pwd=admin123;")
-            print("Kết nối thành công!")
+            print()
+            print("Kết nối Database thành công!")
             return conn  # Trả về kết nối nếu thành công
         except pyodbc.OperationalError:
             if retry_count < max_retries - 1:
@@ -30,8 +31,8 @@ def connect_to_database():
                 print("Không thể kết nối đến cơ sở dữ liệu sau nhiều lần thử. Đã đạt đến giới hạn thử lại.")
                 raise
 
-conn = connect_to_database()
-cursor = conn.cursor()
+# conn = connect_to_database()
+# cursor = conn.cursor()
 #---------------------------------------------------------------------------------------------------
 # Lấy địa chỉ IP của máy
 def get_ip_address():
@@ -52,33 +53,19 @@ api_keys = ['3ab281f56574187a64b1b9abfad4ea7fefe5ff89c4a47a0cf4d2782aa38248e7',
             '1ccff985dea7c477c7678b6b9e34bbc073ed377953d631939c306c1c577a0659',
             '23da994e97602d5623df7232659fd61d6af8045cffe9992d4b96d4498cb25c7c',
             '0615e264fd806b2322ad3c1ae993306df2f082ba933052f628ba3b55314013ec']
-#---------------------------------------------------------------------------------------------------
-
-@app.route('/api/post_alert', methods=['POST'])
-def receive_signal():
-    global value
-    data = request.json  # Nhận dữ liệu từ máy tính
-    # Xử lý dữ liệu và trả về phản hồi
-    value = data['alert']
-    response = {'message': 'Received alert: ' + str(value)}
-    return jsonify(response)
-
-#---------------------------------------------------------------------------------------------------
-
-@app.route('/api/get_alert', methods=['GET'])
-def get_value():
-    
-    response = {'alert': value}
-    return jsonify(response)
 
 ####################################################################################################
 
 @app.route('/api/account/sign-up', methods=['POST'])
 def them_tai_khoan():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     # customerid = data.get('customerid')
@@ -107,6 +94,8 @@ def them_tai_khoan():
     if error_messages:
         msg = ', '.join(error_messages)+' đã tồn tại.'
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 409
 
     # Thực thi truy vấn INSERT để thêm thông tin vào bảng Customer
@@ -117,16 +106,22 @@ def them_tai_khoan():
     # Trả về phản hồi thành công
     msg = 'Thêm thông tin tài khoản thành công'
     print(msg)
+    cursor.close()
+    conn.close()
     return jsonify({'message': msg}), 201
 
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/account/data', methods=['POST'])
 def get_tai_khoan():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     # Thực thi truy vấn SELECT để lấy dữ liệu từ bảng Customer
@@ -150,16 +145,22 @@ def get_tai_khoan():
 
     # Trả về dữ liệu dưới dạng JSON
     print(data)
+    cursor.close()
+    conn.close()
     return jsonify(data), 200
 
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/account/login', methods=['POST'])
 def check_account():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     fcm = data.get('fcm')
@@ -177,7 +178,9 @@ def check_account():
         if not result:
             msg = "Email does not exist"
             print(msg)
-            jsonify({'message': msg}), 404
+            cursor.close()
+            conn.close()
+            return jsonify({'message': msg}), 404
         
         # Kiểm tra trong cột "Email" và "Password"
         print("Đăng nhập bằng Email: ", ten_tai_khoan_email_sdt)
@@ -187,7 +190,9 @@ def check_account():
         if not result:
             msg = "Wrong Password"
             print(msg)
-            jsonify({'message': msg}), 404
+            cursor.close()
+            conn.close()
+            return jsonify({'message': msg}), 404
 
     # Kiểm tra nếu "ten_tai_khoan_email_sdt" toàn là số
     elif ten_tai_khoan_email_sdt.isdigit():
@@ -197,7 +202,9 @@ def check_account():
         if not result:
             msg = "Phone number does not exist"
             print(msg)
-            jsonify({'message': msg}), 404
+            cursor.close()
+            conn.close()
+            return jsonify({'message': msg}), 404
         
         # Kiểm tra trong cột "Mobile" và "Password"
         print("Đăng nhập bằng SDT: ", ten_tai_khoan_email_sdt)
@@ -207,7 +214,9 @@ def check_account():
         if not result:
             msg = "Wrong Password"
             print(msg)
-            jsonify({'message': msg}), 404
+            cursor.close()
+            conn.close()
+            return jsonify({'message': msg}), 404
 
     else:
         # Kiểm tra có tồn tại Tên người dùng này không
@@ -216,6 +225,8 @@ def check_account():
         if not result:
             msg = "Username does not exist"
             print(msg)
+            cursor.close()
+            conn.close()
             return jsonify({'message': msg}), 404
         
         # Kiểm tra trong cột "Username" và "Password"
@@ -226,6 +237,8 @@ def check_account():
         if not result:
             msg = "Wrong Password"
             print(msg)
+            cursor.close()
+            conn.close()
             return jsonify({'message': msg}), 404
 
     #------------------------------------ Thêm FCM ------------------------------------
@@ -248,20 +261,28 @@ def check_account():
     except:
         msg = f"Lỗi! Không thêm được FCM cho User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     #-----------------------------------------------------------------------------------
     msg = 'Login successfull!'
     print(msg)
+    cursor.close()
+    conn.close()
     return jsonify({'message': msg}), 200
 
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/account/logout', methods=['POST'])
 def logout():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     fcm = data.get('fcm')
@@ -284,6 +305,8 @@ def logout():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     cursor.execute("DELETE FROM CustomerDevice WHERE CustomerID = ? AND FCM = ?", (customerid, fcm))
@@ -291,15 +314,21 @@ def logout():
     
     msg = f"Logout! {ten_tai_khoan_email_sdt}"
     print(msg)
+    cursor.close()
+    conn.close()
     return jsonify({'message': msg}), 200
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/account/lay-maxacnhan', methods=['POST'])
 def lay_maxacnhan():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     email = data.get('email')
@@ -326,10 +355,14 @@ def lay_maxacnhan():
         cursor.execute(update_query, (verification_code, email))
         conn.commit()
         print('Mã xác nhận: ', verification_code)
+        cursor.close()
+        conn.close()
         return jsonify({'message': verification_code}), 200
     else:
         msg = 'Không tìm thấy email trong cơ sở dữ liệu.'
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
 
 
@@ -337,10 +370,14 @@ def lay_maxacnhan():
 
 @app.route('/api/account/kt-maxacnhan', methods=['POST'])
 def kt_maxacnhan():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     email = data.get('email')
@@ -354,20 +391,28 @@ def kt_maxacnhan():
     if cursor.fetchall():
         msg = 'Mã xác nhận Đúng'
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 200
     else:
         msg = 'Mã xác nhận Sai'
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/account/capnhat-matkhau', methods=['POST'])
 def capnhat_matkhau():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     email = data.get('email')
@@ -393,20 +438,28 @@ def capnhat_matkhau():
         conn.commit()
         msg = 'Cập nhật mật khẩu thành công'
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 200
     else:
         msg = 'Không tìm thấy email trong cơ sở dữ liệu.'
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
 
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/account/set-avatar', methods=['POST'])
 def set_avatar():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     avatar_base64 = data.get('avatar_base64')
@@ -429,22 +482,30 @@ def set_avatar():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     cursor.execute("UPDATE Customer SET Avatar = ? WHERE CustomerID = ?", (avatar_base64, customerid))
     conn.commit()
     msg = f'Đã set avatar cho User {ten_tai_khoan_email_sdt}'
     print(msg)
+    cursor.close()
+    conn.close()
     return jsonify({'message': msg}), 200
 
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/account/get-avatar', methods=['POST'])
 def get_avatar():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     # avatar_base64 = data.get('avatar_base64')
@@ -467,11 +528,15 @@ def get_avatar():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     cursor.execute("SELECT Avatar FROM Customer WHERE CustomerID = ?", (customerid,))
     avatar_base64 = cursor.fetchone().Avatar
     print("Vừa trả về chuỗi base64 của avatar")
+    cursor.close()
+    conn.close()
     return Response(avatar_base64, mimetype='text/plain')
             
 ####################################################################################################
@@ -616,10 +681,14 @@ def remote_lock():
 
 @app.route('/api/lock/homeinfo', methods=['POST'])
 def homeinfo():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
@@ -642,6 +711,8 @@ def homeinfo():
     except:
         msg = f"Lỗi! Không lấy được CustomerID của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     #---------------------------------------------------------------------------------------
@@ -668,6 +739,8 @@ def homeinfo():
     except:
         msg = f"Lỗi! Không lấy được thông tin các căn hộ của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     #---------------------------------------------------------------------------------------
@@ -695,9 +768,13 @@ def homeinfo():
     except:
         msg = f"Lỗi! Không lấy được thông tin các căn hộ User {ten_tai_khoan_email_sdt} được thêm vào"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     # Chuyển danh sách thành định dạng JSON và trả về
+    cursor.close()
+    conn.close()
     print(f"Trả về list thông tin các căn hộ của User {ten_tai_khoan_email_sdt}...")
     return json.dumps(home_info_list), 200
 
@@ -705,10 +782,14 @@ def homeinfo():
 
 @app.route('/api/lock/delete-home', methods=['POST'])
 def delete_home():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     homeid = data.get('homeid')
@@ -722,6 +803,8 @@ def delete_home():
         conn.rollback()
         msg = f"Không xóa được ở bảng Camera"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
     #-----------------------------------------------------------------
     # Lock
@@ -732,6 +815,8 @@ def delete_home():
         conn.rollback()
         msg = f"Không xóa được ở bảng Lock"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
     #-----------------------------------------------------------------    
     # Gateway
@@ -742,6 +827,8 @@ def delete_home():
         conn.rollback()
         msg = f"Không xóa được ở bảng Gateway"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
     #-----------------------------------------------------------------
     # HomeMember
@@ -752,6 +839,8 @@ def delete_home():
         conn.rollback()
         msg = f"Không xóa được ở bảng HomeMember"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
     #-----------------------------------------------------------------
     # CustomerHome
@@ -760,21 +849,29 @@ def delete_home():
         conn.commit()
         msg = f"Xóa thành công Home {homeid}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 200
     except Exception as e:
         conn.rollback()
         msg = f"Không xóa được ở bảng CustomerHome"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
     
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/lock/addhome', methods=['POST'])
 def addhome():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     try:
@@ -804,6 +901,8 @@ def addhome():
         if cursor.fetchall():
             msg = 'Thêm nhà không thành công. Trùng HomeName!!!'
             print(msg)
+            cursor.close()
+            conn.close()
             return jsonify({'message': msg}), 500
         
          
@@ -812,21 +911,29 @@ def addhome():
         conn.commit()
         msg = 'Thêm nhà thành công'
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 201
     
     except:
         msg = 'Thêm nhà không thành công'
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
 
 ####################################################################################################
 
 @app.route('/api/lock/lockinfo', methods=['POST'])
 def lockinfo():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
@@ -852,6 +959,8 @@ def lockinfo():
     except:
         msg = f"Lỗi! Không lấy được CustomerID của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     try:
@@ -869,6 +978,8 @@ def lockinfo():
 
         # Chuyển danh sách thành định dạng JSON và trả về
         print(f"Có {len(results)} khóa của căn hộ")
+        cursor.close()
+        conn.close()
         return json.dumps(lock_info_list), 200
     except:
         try:
@@ -891,20 +1002,28 @@ def lockinfo():
 
                 # Chuyển danh sách thành định dạng JSON và trả về
                 print(f"Có {len(results)} khóa của căn hộ")
+                cursor.close()
+                conn.close()
                 return json.dumps(lock_info_list), 200
         except:
             msg = "Lỗi! Không lấy được thông tin các khóa"
             print(msg)
+            cursor.close()
+            conn.close()
             return jsonify({'message': msg}), 404
 
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/lock/delete-lock', methods=['POST'])
 def delete_lock():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     lockid = data.get('lockid')
@@ -923,6 +1042,8 @@ def delete_lock():
         conn.rollback()
         msg = f"Không xóa được khóa {lockid} trong bảng Lock"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
 
     # Xóa khóa (Camera)
@@ -935,6 +1056,8 @@ def delete_lock():
         conn.rollback()
         msg = f"Không xóa được khóa {lockid} trong bảng Lock"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
     
     # Xóa khóa (LockHistory)
@@ -944,15 +1067,21 @@ def delete_lock():
             cursor.execute("DELETE FROM LockHistory WHERE LockID = ?", (lockid,))
             msg = f"Xóa thành công khóa {lockid} trong bảng LockHistory"
             print(msg)
+            cursor.close()
+            conn.close()
             return jsonify({'message': msg}), 200
         else:
             msg = f"Khóa {lockid} không có lịch sử để xóa"
             print(msg)
+            cursor.close()
+            conn.close()
             return jsonify({'message': msg}), 200
     except Exception as e:
         conn.rollback()
         msg = f"Không xóa được khóa {lockid} trong bảng LockHistory"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
     
 #---------------------------------------------------------------------------------------------------
@@ -1072,10 +1201,14 @@ def addlock():
 
 @app.route('/api/lock/add-home-member', methods=['POST'])
 def add_home_member():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     homemember = data.get('ten_tai_khoan_email_sdt_homemember')
@@ -1100,6 +1233,8 @@ def add_home_member():
     except:
         msg = f"Lỗi! Không lấy được CustomerID của Admin {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     #---------------------------------------------------------------------------------------
     try:
@@ -1111,6 +1246,8 @@ def add_home_member():
         # msg = f"Lỗi! Không lấy được HomeID của Admin {ten_tai_khoan_email_sdt}"
         msg = f"Lỗi! Không phải tài khoản Quản trị viên."
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     #---------------------------------------------------------------------------------------
     try:
@@ -1126,6 +1263,8 @@ def add_home_member():
     except:
         msg = f"Lỗi! Không tìm thấy tài khoản {homemember}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     #---------------------------------------------------------------------------------------
     # Kiểm tra thêm quyền home-user này chưa
@@ -1133,6 +1272,8 @@ def add_home_member():
     if cursor.fetchall():
         msg = f"Không thêm được. Trước đó đã thêm User {homemember} vào căn {homename}!"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     #---------------------------------------------------------------------------------------
     try:
@@ -1141,20 +1282,28 @@ def add_home_member():
         conn.commit()
         msg = f"Đã thêm User {homemember} và căn hộ {homename} của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 201
     except:
         msg = f"Lỗi! Không thêm HomeMember được!"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/lock/delete-home-member', methods=['POST'])
 def delete_home_member():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     homeid = data.get('homeid')
@@ -1174,6 +1323,8 @@ def delete_home_member():
     except:
         msg = f"Lỗi! Không lấy được CustomerID của Member {sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     #---------------------------------------------------------------------------------------
     try:
@@ -1185,6 +1336,8 @@ def delete_home_member():
     except:
         msg = f"Lỗi! Không xóa được User {sdt} khỏi căn hộ {homeid} trong Database"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
     #---------------------------------------------------------------------------------------
     try:
@@ -1229,6 +1382,8 @@ def delete_home_member():
                         cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
                         error = cursor.fetchone().Description
                         print(error)
+                        cursor.close()
+                        conn.close()
                         return Response(error, mimetype='text/plain')
                     
                 except Exception as e:
@@ -1236,20 +1391,28 @@ def delete_home_member():
                     msg = f"Lỗi! Chưa xóa được PassCode ở Lock {lock_id} của User {username} trong Database"
                     print(msg)
         msg = "Đã xóa xong"
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 200
     except:
         msg = f"Lỗi! Không xóa được User {username} khỏi căn hộ {homeid}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
     
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/lock/home-member-list', methods=['POST'])
 def home_member_list():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     homeid = data.get('homeid')
@@ -1271,6 +1434,8 @@ def home_member_list():
     except:
         msg = f"Lỗi! Không lấy được CustomerID của Admin {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     #---------------------------------------------------------------------------------------
     # # Kiểm tra "ten_tai_khoan_email_sdt" có phải admin của căn hộ không
@@ -1301,23 +1466,28 @@ def home_member_list():
                 'FullName': result.FullName,
             })
         print(f"Trả về list các User được thêm quyền của căn hộ {homeid}...")
+        cursor.close()
+        conn.close()
         return json.dumps(member_list), 200
     except:
         msg = f"Lỗi! Không lấy được list các User được thêm quyền của căn hộ {homeid}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
 ####################################################################################################
 
 @app.route('/api/lock/updatehistory', methods=['POST'])
 def update_history():
-    # Lấy thông tin từ yêu cầu POST
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
-    
-    # Kiểm tra Key
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
 
     # Lấy dữ liệu từ request
@@ -1347,6 +1517,8 @@ def update_history():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
 
     # Xác định HistoryDescription
@@ -1371,6 +1543,8 @@ def update_history():
     except ValueError:
         msg = f"User {username} không có FullName"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({"error": msg}), 400
     
     # Thêm dữ liệu vào bảng 'LockHistory' trong CSDL
@@ -1379,19 +1553,22 @@ def update_history():
     conn.commit()
     msg = "LockHistory updated successfully"
     print(msg)
+    cursor.close()
+    conn.close()
     return jsonify({"message": msg}), 201
 
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/lock/get-history', methods=['POST'])
 def get_history():
-    # Lấy thông tin từ yêu cầu POST
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
-    
-    # Kiểm tra Key
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
 
     lock_id = data.get('lock_id')
@@ -1407,6 +1584,8 @@ def get_history():
                 'HistoryDate': i.HistoryDate.strftime("%Y-%m-%d %H:%M:%S"),
             })
         print(f"Trả về lịch sử khóa {lock_id}")
+        cursor.close()
+        conn.close()
         return json.dumps(history_list), 200
     except Exception as e:
         print(e)
@@ -1415,10 +1594,14 @@ def get_history():
 
 @app.route('/api/lock/check-existed-passcode', methods=['POST'])
 def check_existed_passcode():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     lock_id = data.get('lockid')
@@ -1441,25 +1624,35 @@ def check_existed_passcode():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     cursor.execute("SELECT * FROM PassCode WHERE LockID = ? AND Username = ? ", (lock_id, username))
     results = cursor.fetchone()
     if results:
         print(results.PassCode)
+        cursor.close()
+        conn.close()
         return Response(results.PassCode, mimetype='text/plain')
     else:
         print("Đặt PassCode")
+        cursor.close()
+        conn.close()
         return Response("1", mimetype='text/plain')
     
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/lock/add-custom-passcode', methods=['POST'])
 def add_custom_passcode():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     lock_id = data.get('lockid')
@@ -1486,6 +1679,8 @@ def add_custom_passcode():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     
@@ -1513,6 +1708,8 @@ def add_custom_passcode():
             cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
             error = cursor.fetchone().Description
             print(error)
+            cursor.close()
+            conn.close()
             return Response(error, mimetype='text/plain')
         except:
             passcode_id =  response.json()['keyboardPwdId']
@@ -1544,20 +1741,28 @@ def add_custom_passcode():
             conn.commit()
             msg = "Đặt PassCode thành công!"
             print(msg)
+            cursor.close()
+            conn.close()
             return Response(msg, mimetype='text/plain')
     else:
         msg = "Failed"
         print(msg)
+        cursor.close()
+        conn.close()
         return Response(msg, mimetype='text/plain')
     
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/lock/change-passcode', methods=['POST'])
 def change_passcode():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
@@ -1584,6 +1789,8 @@ def change_passcode():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
@@ -1617,6 +1824,8 @@ def change_passcode():
                 conn.commit()
                 msg = f"Đổi thành công PassCode của User {username}"
                 print(msg)
+                cursor.close()
+                conn.close()
                 return Response("Đã đổi PassCode", mimetype='text/plain')
             else:
                 # Trả về lỗi trong ds lỗi TTLock
@@ -1624,23 +1833,33 @@ def change_passcode():
                 cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
                 error = cursor.fetchone().Description
                 print(error)
+                cursor.close()
+                conn.close()
                 return Response(error, mimetype='text/plain')
             
         except Exception as e:
             print(e)
+            cursor.close()
+            conn.close()
             return Response("Lỗi! Chưa đổi được PassCode trong Database", mimetype='text/plain')
     else:
         msg = f"Lỗi! Chưa đổi được PassCode của User {username}"
         print(msg)
+        cursor.close()
+        conn.close()
         return Response(msg, mimetype='text/plain')
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/lock/delete-passcode', methods=['POST'])
 def delete_passcode():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     lock_id = data.get('lockid')
@@ -1665,6 +1884,8 @@ def delete_passcode():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     #################### Xóa PassCode trên TTLock ####################
@@ -1695,6 +1916,8 @@ def delete_passcode():
                 conn.commit()
                 msg = f"Xóa thành công PassCode của User {username}"
                 print(msg)
+                cursor.close()
+                conn.close()
                 return Response("Đã xóa PassCode", mimetype='text/plain')
             else:
                 # Trả về lỗi trong ds lỗi TTLock
@@ -1702,14 +1925,20 @@ def delete_passcode():
                 cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
                 error = cursor.fetchone().Description
                 print(error)
+                cursor.close()
+                conn.close()
                 return Response(error, mimetype='text/plain')
             
         except Exception as e:
             print(e)
+            cursor.close()
+            conn.close()
             return Response("Lỗi! Chưa xóa được PassCode trong Database", mimetype='text/plain')
     else:
         msg = f"Lỗi! Chưa xóa được PassCode của User {username}"
         print(msg)
+        cursor.close()
+        conn.close()
         return Response(msg, mimetype='text/plain')
 
 ####################################################################################################
@@ -1764,10 +1993,14 @@ def delete_passcode():
 
 @app.route('/api/camera/get-user-camera', methods=['POST'])
 def get_camera():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
@@ -1787,6 +2020,8 @@ def get_camera():
     except:
         msg = f"Lỗi! Không lấy được CustomerID của user {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     # Lấy danh sách camera của User
@@ -1863,10 +2098,17 @@ def get_camera():
     except Exception as e:
         msg = f"Lỗi! Không lấy được danh sách camera của user {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     try:
         for camera in camera_list:
+            # Thêm trường HomeName cho mỗi Cam
+            cursor.execute("SELECT HomeName FROM CustomerHome WHERE HomeID = ?", (camera['HomeID'], ))
+            camera['HomeName'] = cursor.fetchone().HomeName
+            
+            # Thêm trường LastestAlert và Date cho mỗi Cam
             cam_id = camera['CameraID']
             cursor.execute("SELECT TOP 1 * FROM Notification WHERE CameraID = ? and Type = ? ORDER BY Date DESC", (cam_id, 'Alert'))
             row = cursor.fetchone()
@@ -1879,10 +2121,14 @@ def get_camera():
                 camera['Date'] = None
                 
         print(f"Trả về danh sách camera và cảnh báo mới nhất của user {ten_tai_khoan_email_sdt}")
+        cursor.close()
+        conn.close()
         return json.dumps(camera_list), 200
     except Exception as e:
         msg = f"Lỗi! Không lấy được các cảnh báo mới nhất"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
 
 #---------------------------------------------------------------------------------------------------
@@ -1891,10 +2137,14 @@ def get_camera():
 
 @app.route('/api/notification/alert/get-by-camera', methods=['POST'])
 def alert_get_by_camera():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     # ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
@@ -1925,6 +2175,8 @@ def alert_get_by_camera():
             i['Seen'] = 'False'
             
     print(f"Trả về list các cảnh báo của Camera {camera_id}...")
+    cursor.close()
+    conn.close()
     return json.dumps(notification_list), 200
     # except:
     #     msg = f"Lỗi! Không lấy được list các thông báo của User {username}"
@@ -1935,10 +2187,14 @@ def alert_get_by_camera():
 
 @app.route('/api/notification/alert/get-by-user', methods=['POST'])
 def alert_get_by_user():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
@@ -1961,6 +2217,8 @@ def alert_get_by_user():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     # Lấy ID nhà
@@ -2008,16 +2266,22 @@ def alert_get_by_user():
             i['Seen'] = 'False'
             
     print(f"Trả về list các cảnh báo của User {ten_tai_khoan_email_sdt}...")
+    cursor.close()
+    conn.close()
     return json.dumps(notification_list), 200
    
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/notification/get-img', methods=['POST'])
 def get_img():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     id_notification = data.get('id_notification')
@@ -2040,6 +2304,8 @@ def get_img():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     #----------------------------------------------------------------------
@@ -2063,10 +2329,14 @@ def get_img():
         base64_image = base64.b64encode(image_data).decode("utf-8")
         # Trả về chuỗi base64 cho app
         print("Vừa trả về chuỗi base64")
+        cursor.close()
+        conn.close()
         return Response(base64_image, mimetype='text/plain')
     else:
         msg = "Thông báo này không có ảnh"
         print(msg)
+        cursor.close()
+        conn.close()
         return Response(msg, mimetype='text/plain')
     #----------------------------------------------------------------------
     
@@ -2079,10 +2349,14 @@ def get_img():
 
 @app.route('/api/notification/turn-off', methods=['POST'])
 def turn_off_notification():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
@@ -2107,6 +2381,8 @@ def turn_off_notification():
     except:
         msg = f"Lỗi! Không lấy được CustomerID của user {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
 
     offntfuntil_datetime = datetime.datetime.now() + datetime.timedelta(minutes=minutes)
@@ -2117,16 +2393,22 @@ def turn_off_notification():
         
     msg = f"Tắt thông báo của User {ten_tai_khoan_email_sdt} về camera {camera_id} cho tới {offntfuntil_datetime.strftime('%Y-%m-%d %H:%M:%S')}"
     print(msg)
+    cursor.close()
+    conn.close()
     return jsonify({'message': msg}), 201
 
 #---------------------------------------------------------------------------------------------------
 # CHƯA TEST
 @app.route('/api/notification/send-to-user', methods=['POST'])
 def send_to_user():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
 
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
@@ -2153,6 +2435,8 @@ def send_to_user():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     current_time = datetime.datetime.now()
@@ -2162,15 +2446,21 @@ def send_to_user():
     conn.commit()
     msg = f"Đã post thông báo cho user {username} lên database"
     print(msg)
+    cursor.close()
+    conn.close()
     return jsonify({'message': msg}), 201
 #---------------------------------------------------------------------------------------------------
 # CHƯA TEST
 @app.route('/api/notification/get-all', methods=['POST'])
 def get_all_notifications():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
 
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
@@ -2192,6 +2482,8 @@ def get_all_notifications():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     # Lấy ID nhà
@@ -2255,16 +2547,22 @@ def get_all_notifications():
         
             
     print(f"Trả về list các thông báo của User {ten_tai_khoan_email_sdt}...")
+    cursor.close()
+    conn.close()
     return json.dumps(notification_list), 200
 
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/notification/set-seen', methods=['POST'])
 def set_seen():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     id_notification = data.get('id_notification')
@@ -2287,6 +2585,8 @@ def set_seen():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (id_notification, customerid))
@@ -2296,16 +2596,22 @@ def set_seen():
         conn.commit()
     msg = f"Đã set seen thông báo có ID {id_notification}"
     print(msg)
+    cursor.close()
+    conn.close()
     return jsonify({'message': msg}), 200
 
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/notification/set-all-seen', methods=['POST'])
 def set_all_seen():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
@@ -2326,6 +2632,8 @@ def set_all_seen():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
 
     # Lấy ID nhà
@@ -2370,16 +2678,22 @@ def set_all_seen():
     conn.commit()
     msg = f"Đã set seen tất cả thông báo của User {ten_tai_khoan_email_sdt}"
     print(msg)
+    cursor.close()
+    conn.close()
     return jsonify({'message': msg}), 200
 
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/notification/count-new', methods=['POST'])
 def count_new_ntf():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
 
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
@@ -2401,6 +2715,8 @@ def count_new_ntf():
     except:
         msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 404
     
     # Lấy ID nhà
@@ -2424,6 +2740,8 @@ def count_new_ntf():
                         WHERE CustomerID = {customerid}
                     """)
     count = all_ntf - cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
     return jsonify({"message": count}), 200
     # return Response(str(count), mimetype='text/plain'), 200
 #########################################################################################################################
@@ -2433,10 +2751,14 @@ def count_new_ntf():
   
 @app.route('/api/notification/get-camera-id', methods=['POST'])
 def get_camera_id():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     rtsp = data.get('rtsp')
@@ -2445,15 +2767,21 @@ def get_camera_id():
     camera_id = cursor.fetchone().CameraID
     msg = f"Trả về id camera có rtsp là {rtsp}"
     print(msg)
+    cursor.close()
+    conn.close()
     return jsonify({'message': camera_id}), 200
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/camera/info', methods=['POST'])
 def camera_info():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     cursor.execute("SELECT * FROM Camera")
@@ -2467,16 +2795,22 @@ def camera_info():
             'LockID': i.LockID,
         })
     print(f"Trả về danh sách thông tin camera")
+    cursor.close()
+    conn.close()
     return json.dumps(camera_list), 200
 
 #---------------------------------------------------------------------------------------------------  
   
 @app.route('/api/notification/save', methods=['POST'])
 def get_lockrecord():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     notification_type = data.get('notification_type')
@@ -2518,6 +2852,8 @@ def get_lockrecord():
     
     msg = f"Đã lưu thông tin về thông báo vào database"
     print(msg)
+    cursor.close()
+    conn.close()
     return jsonify({'message': msg}), 201
 
     # except:
@@ -2529,11 +2865,16 @@ def get_lockrecord():
 
 @app.route('/api/notification/get-fcm-to-send', methods=['POST'])
 def get_fcm_to_send():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
+    
     # OffNotification (CameraID, CustomerID, TimeToTurnOn)
     camera_id = data.get('camera_id')
     print("camera_id:", camera_id, ' - ', type(camera_id))
@@ -2576,6 +2917,8 @@ def get_fcm_to_send():
     fcm_list = []
     if row is None:
         print(f"Không tìm thấy camera có ID là {camera_id}")
+        cursor.close()
+        conn.close()
         return json.dumps(fcm_list), 200
     customer_ids.append(row.CustomerID)
     
@@ -2591,16 +2934,22 @@ def get_fcm_to_send():
     fcm_list = [row.FCM for row in cursor]
     
     print(f"Trả về danh sách FCM của các User có quyền coi camera {camera_id}")
+    cursor.close()
+    conn.close()
     return json.dumps(fcm_list), 200
     
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/pose/get-camera-data', methods=['POST'])
 def get_camera_data():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     # Truy vấn SQL để lấy dữ liệu từ bảng Camera
@@ -2619,6 +2968,8 @@ def get_camera_data():
             'ClimbingArea': json.loads(row.ClimbingArea) if row.ClimbingArea else None,
         })
     print(f"Trả về thông tin tất cả Camera")
+    cursor.close()
+    conn.close()
     return json.dumps(camera_data), 200
 ####################################################################################################
 
