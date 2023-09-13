@@ -1867,6 +1867,11 @@ def get_camera():
     
     try:
         for camera in camera_list:
+            # Thêm trường HomeName cho mỗi Cam
+            cursor.execute("SELECT HomeName FROM CustomerHome WHERE HomeID = ?", (camera['HomeID'], ))
+            camera['HomeName'] = cursor.fetchone().HomeName
+            
+            # Thêm trường LastestAlert và Date cho mỗi Cam
             cam_id = camera['CameraID']
             cursor.execute("SELECT TOP 1 * FROM Notification WHERE CameraID = ? and Type = ? ORDER BY Date DESC", (cam_id, 'Alert'))
             row = cursor.fetchone()
