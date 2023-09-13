@@ -735,7 +735,7 @@ def homeinfo():
             print(f"User {ten_tai_khoan_email_sdt} chưa thêm căn hộ nào")
         else:
             print(f"Có {len(results)} căn hộ của User {ten_tai_khoan_email_sdt}")
-            
+        
     except:
         msg = f"Lỗi! Không lấy được thông tin các căn hộ của User {ten_tai_khoan_email_sdt}"
         print(msg)
@@ -924,6 +924,114 @@ def addhome():
 
 ####################################################################################################
 
+@app.route('/api/lock/all-lock', methods=['POST'])
+def lockinfo():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+    home_info_list, all_lock = [], []
+    
+    #-------------------------------------------------
+    # Lấy CustomerID
+    try:
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        results = cursor.fetchall()
+        customerid = results[0][0]
+    except:
+        msg = f"Lỗi! Không lấy được CustomerID của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
+    #---------------------------------------------------------------------------------------
+    # LẤY NHÀ CỦA USER
+    try:
+        cursor.execute("SELECT HomeName, HomeAddress, DistrictID, HomeID FROM CustomerHome WHERE CustomerID = ?", customerid)
+        results = cursor.fetchall()
+        # Chuyển danh sách các tuple thành danh sách các dictionary
+        
+        for result in results:
+            home_info_list.append({
+                'HomeName': result.HomeName,
+                'HomeAddress': result.HomeAddress,
+                'DistrictID': result.DistrictID,
+                'HomeID': result.HomeID,
+                'Owner': '1',
+            })
+    except:
+        msg = f"Lỗi! Không lấy được thông tin các căn hộ của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
+    #---------------------------------------------------------------------------------------
+    # LẤY NHÀ CỦA USER ĐƯỢC THÊM
+    try:
+        cursor.execute("SELECT HomeID, AdminID FROM HomeMember WHERE HomeMemberID = ?", customerid)
+        results = cursor.fetchall()
+        # Lấy thông tin căn hộ được thêm quyền
+        for homeid, admin_id in results:
+            cursor.execute("SELECT HomeName, HomeAddress, DistrictID FROM CustomerHome WHERE HomeID = ? AND CustomerID = ?", 
+                        (homeid, admin_id))
+            results_ = cursor.fetchone()
+            # Chuyển danh sách các tuple thành danh sách các dictionary
+            home_info_list.append({
+                'HomeName': results_.HomeName,
+                'HomeAddress': results_.HomeAddress,
+                'DistrictID': results_.DistrictID,
+                'HomeID': homeid,
+                'Owner': '0',
+            })
+    except:
+        msg = f"Lỗi! Không lấy được thông tin các căn hộ User {ten_tai_khoan_email_sdt} được thêm vào"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
+    #---------------------------------------------------------------------------------------
+    # LẤY THÔNG TIN TẤT CẢ CÁC KHÓA
+    for home in home_info_list:
+        cursor.execute("SELECT LockID, LockName, LockStatus FROM Lock WHERE HomeID = ?", home['HomeID'])
+        results = cursor.fetchall()
+        # Chuyển danh sách các tuple thành danh sách các dictionary
+        for result in results:
+            all_lock.append({
+                'HomeName': home['HomeName'],
+                'HomeAddress': home['HomeAddress'],
+                'DistrictID': home['DistrictID'],
+                'HomeID': home['HomeID'],
+                'Owner': home['Owner'],
+                
+                'LockID': result.LockID,
+                'LockName': result.LockName,
+                'LockStatus': result.LockStatus if result.LockStatus!=None else 'Unknown',
+            })
+    
+    cursor.close()
+    conn.close()
+    return json.dumps(all_lock), 200
+#---------------------------------------------------------------------------------------------------
+  
 @app.route('/api/lock/lockinfo', methods=['POST'])
 def lockinfo():
     conn = connect_to_database()
