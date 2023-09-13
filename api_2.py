@@ -925,7 +925,7 @@ def addhome():
 ####################################################################################################
 
 @app.route('/api/lock/all-lock', methods=['POST'])
-def lockinfo():
+def all_lock():
     conn = connect_to_database()
     cursor = conn.cursor()
     data = request.get_json()
