@@ -1288,17 +1288,17 @@ def home_member_list():
     #---------------------------------------------------------------------------------------
     try:
         member_list = []
-        # Từ "homename" lấy HomeID của admin trong bảng CustomerHome
+        # Lấy danh sách member
         cursor.execute("SELECT HomeMemberID FROM HomeMember WHERE AdminID = ? AND HomeID = ?", (admin_id, homeid))
         members = cursor.fetchall()
         for member_id in members:
             cursor.execute("SELECT Username, Email, Mobile, FullName FROM Customer WHERE CustomerID = ?", member_id[0])
             result = cursor.fetchone()
             member_list.append({
-                'Username': result[0],
-                'Email': result[1],
-                'Mobile': result[2],
-                'FullName': result[3]
+                'Username': result.Username,
+                'Email': result.Email,
+                'Mobile': result.Mobile,
+                'FullName': result.FullName,
             })
         print(f"Trả về list các User được thêm quyền của căn hộ {homeid}...")
         return json.dumps(member_list), 200
@@ -1879,7 +1879,7 @@ def get_camera():
                 camera['Date'] = None
                 
         print(f"Trả về danh sách camera và cảnh báo mới nhất của user {ten_tai_khoan_email_sdt}")
-        return json.dumps(camera_list), 200        
+        return json.dumps(camera_list), 200
     except Exception as e:
         msg = f"Lỗi! Không lấy được các cảnh báo mới nhất"
         print(msg)
@@ -2572,7 +2572,12 @@ def get_fcm_to_send():
                         INNER JOIN CustomerHome ch ON c.HomeID = ch.HomeID
                         WHERE c.CameraID = {camera_id}
                     """)
-    customer_ids.append(cursor.fetchone().CustomerID)
+    row = cursor.fetchone()
+    fcm_list = []
+    if row is None:
+        print(f"Không tìm thấy camera có ID là {camera_id}")
+        return json.dumps(fcm_list), 200
+    customer_ids.append(row.CustomerID)
     
     customer_ids = list(set(customer_ids))
     
@@ -2587,8 +2592,34 @@ def get_fcm_to_send():
     
     print(f"Trả về danh sách FCM của các User có quyền coi camera {camera_id}")
     return json.dumps(fcm_list), 200
+    
+#---------------------------------------------------------------------------------------------------
 
-
+@app.route('/api/pose/get-camera-data', methods=['POST'])
+def get_camera_data():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    # Truy vấn SQL để lấy dữ liệu từ bảng Camera
+    cursor.execute("SELECT CameraID, HomeID, CameraName, RTSP, LockpickingArea, ClimbingArea FROM Camera")
+    
+    # Trích xuất dữ liệu từ kết quả truy vấn
+    camera_data = []
+    for row in cursor.fetchall():
+        # Thêm dữ liệu vào danh sách camera_data
+        camera_data.append({
+            'CameraID': row.CameraID,
+            'HomeID': row.HomeID,
+            'CameraName': row.CameraName,
+            'RTSP': row.RTSP,
+            'LockpickingArea': json.loads(row.LockpickingArea) if row.LockpickingArea else None,
+            'ClimbingArea': json.loads(row.ClimbingArea) if row.ClimbingArea else None,
+        })
+    print(f"Trả về thông tin tất cả Camera")
+    return json.dumps(camera_data), 200
 ####################################################################################################
 
 
