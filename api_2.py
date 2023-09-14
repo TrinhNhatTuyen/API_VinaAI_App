@@ -1247,7 +1247,7 @@ def addlock():
     # Kiểm tra nếu LockName đã tồn tại
     cursor.execute("SELECT * FROM Lock WHERE LockName = ? AND HomeID = ?", (lockname, homeid))
     if cursor.fetchall():
-        msg = 'Trùng LockName'
+        msg = 'Trùng tên khóa'
         print(msg)
         cursor.close()
         conn.close()
