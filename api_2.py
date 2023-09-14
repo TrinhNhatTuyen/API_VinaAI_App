@@ -2236,6 +2236,8 @@ def get_camera():
         results = result_1 + result_2
         
         for i in results:
+            cursor.execute("SELECT CameraName, RTSP FROM Camera WHERE CameraID = ?", i.CameraID)
+            cam = cursor.fetchone()
             cam_img = cam.CameraName
             cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
             img = cv2.imread(cam_img_path)
@@ -2247,9 +2249,6 @@ def get_camera():
             
             # Nếu cam không có khóa
             if i.LockID==None:
-                cursor.execute("SELECT * FROM Camera WHERE CameraID = ?", i.CameraID)
-                cam = cursor.fetchone()
-                #----------------------------------------------------------------------
                 camera_list.append({
                     'HomeID': i.HomeID,
                     'CameraID': i.CameraID,
@@ -2263,9 +2262,7 @@ def get_camera():
             # Nếu cam có khóa
             else:
                 cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", i.LockID)
-                lock = cursor.fetchone()
-                cursor.execute("SELECT CameraName, RTSP FROM Camera WHERE CameraID = ?", i.CameraID)
-                cam = cursor.fetchone()
+                lock = cursor.fetchone()   
                 #----------------------------------------------------------------------        
                 camera_list.append({
                     'HomeID': i.HomeID,
@@ -2295,10 +2292,12 @@ def get_camera():
             cursor.execute("SELECT TOP 1 * FROM Notification WHERE CameraID = ? and Type = ? ORDER BY Date DESC", (cam_id, 'Alert'))
             row = cursor.fetchone()
             if row:
+                camera['ID_LastestAlert'] = row.ID_Notification
                 camera['LastestAlert'] = row.Body
                 # camera['Date'] = " - " + row.Date.strftime("%Y-%m-%d %H:%M:%S")
                 camera['Date'] = " - " + row.Date.strftime("%d-%m-%Y %Hh%M'%S\"")
             else:
+                camera['ID_LastestAlert'] = None
                 camera['LastestAlert'] = None
                 camera['Date'] = None
                 
