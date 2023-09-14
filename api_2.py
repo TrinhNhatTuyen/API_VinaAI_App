@@ -724,10 +724,10 @@ def homeinfo():
         
         for result in results:
             home_info_list.append({
-                'HomeName': result[0],
-                'HomeAddress': result[1],
-                'DistrictID': result[2],
-                'HomeID': result[3],
+                'HomeName': result.HomeName,
+                'HomeAddress': result.HomeAddress,
+                'DistrictID': result.DistrictID,
+                'HomeID': result.HomeID,
                 'Owner': '1',
             })
         
@@ -755,9 +755,9 @@ def homeinfo():
             results_ = cursor.fetchone()
             # Chuyển danh sách các tuple thành danh sách các dictionary
             home_info_list.append({
-                'HomeName': results_[0],
-                'HomeAddress': results_[1],
-                'DistrictID': results_[2],
+                'HomeName': result.HomeName,
+                'HomeAddress': result.HomeAddress,
+                'DistrictID': result.DistrictID,
                 'HomeID': homeid,
                 'Owner': '0',
             })
@@ -1247,7 +1247,7 @@ def addlock():
     # Kiểm tra nếu LockName đã tồn tại
     cursor.execute("SELECT * FROM Lock WHERE LockName = ? AND HomeID = ?", (lockname, homeid))
     if cursor.fetchall():
-        msg = 'Thêm khóa không thành công. Trùng LockName!!!'
+        msg = 'Trùng LockName'
         print(msg)
         cursor.close()
         conn.close()
