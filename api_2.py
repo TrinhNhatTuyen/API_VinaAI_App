@@ -679,7 +679,7 @@ def remote_lock():
 
 ####################################################################################################
 
-@app.route('/api/lock/homeinfo', methods=['POST'])
+@app.route('/api/home/homeinfo', methods=['POST'])
 def homeinfo():
     conn = connect_to_database()
     cursor = conn.cursor()
@@ -780,7 +780,7 @@ def homeinfo():
 
 #---------------------------------------------------------------------------------------------------
 
-@app.route('/api/lock/delete-home', methods=['POST'])
+@app.route('/api/home/delete-home', methods=['POST'])
 def delete_home():
     conn = connect_to_database()
     cursor = conn.cursor()
@@ -862,7 +862,7 @@ def delete_home():
     
 #---------------------------------------------------------------------------------------------------
 
-@app.route('/api/lock/addhome', methods=['POST'])
+@app.route('/api/home/addhome', methods=['POST'])
 def addhome():
     conn = connect_to_database()
     cursor = conn.cursor()
@@ -921,6 +921,73 @@ def addhome():
         cursor.close()
         conn.close()
         return jsonify({'message': msg}), 500
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/home/camera', methods=['POST'])
+def get_camera_in_home():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    homeid = data.get('homeid')
+    print("homeid:", homeid, ' - ', type(homeid))
+
+    home_info_list = []
+    cursor.execute("SELECT CameraID, CameraName, HomeID, LockID, CamUsername, RTSP FROM Camera WHERE HomeID = ?", homeid)
+    results = cursor.fetchall()
+    for i in results:
+        
+        cam_img = i.CameraName
+        cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
+        img = cv2.imread(cam_img_path)
+        _, image_data = cv2.imencode('.jpg', img)
+        
+        # Chuyển đổi dữ liệu ảnh thành chuỗi base64
+        base64_image = base64.b64encode(image_data).decode("utf-8")
+        
+        #--------------------------------------------------------------------------
+        
+        # Nếu cam không có khóa
+        if i.LockID==None:
+
+            home_info_list.append({
+                'CameraID': i.CameraID,
+                'CameraName': i.CameraName,
+                'LockID': None,
+                'LockName': None,
+                'CamUsername': i.CamUsername,
+                'RTSP': i.RTSP,
+                'Hinh': base64_image,
+            })
+            
+        # Nếu cam có khóa
+        else:
+            cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", i.LockID)
+            lock = cursor.fetchone()
+            #---------------------------------------------------------------------- 
+            home_info_list.append({
+                'CameraID': i.CameraID,
+                'CameraName': i.CameraName,
+                'LockID': i.LockID,
+                'LockName': lock.LockName,
+                'CamUsername': i.CamUsername,
+                'RTSP': i.RTSP,
+                'Hinh': base64_image,
+            })
+            
+    cursor.close()
+    conn.close()
+    print(f"Trả về list thông tin các camera của căn hộ có ID là {homeid}...")
+    return json.dumps(home_info_list), 200
+    
+#---------------------------------------------------------------------------------------------------
 
 ####################################################################################################
 
@@ -2169,19 +2236,20 @@ def get_camera():
         results = result_1 + result_2
         
         for i in results:
+            cam_img = cam.CameraName
+            cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
+            img = cv2.imread(cam_img_path)
+            _, image_data = cv2.imencode('.jpg', img)
+            
+            # Chuyển đổi dữ liệu ảnh thành chuỗi base64
+            base64_image = base64.b64encode(image_data).decode("utf-8")
+            #--------------------------------------------------------------------------
+            
             # Nếu cam không có khóa
             if i.LockID==None:
                 cursor.execute("SELECT * FROM Camera WHERE CameraID = ?", i.CameraID)
                 cam = cursor.fetchone()
-                #--------------------------------------------------------------------------
-                cam_img = cam.CameraName
-                cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
-                img = cv2.imread(cam_img_path)
-                _, image_data = cv2.imencode('.jpg', img)
-                
-                # Chuyển đổi dữ liệu ảnh thành chuỗi base64
-                base64_image = base64.b64encode(image_data).decode("utf-8")
-                #--------------------------------------------------------------------------    
+                #----------------------------------------------------------------------
                 camera_list.append({
                     'HomeID': i.HomeID,
                     'CameraID': i.CameraID,
@@ -2191,21 +2259,14 @@ def get_camera():
                     'RTSP': cam.RTSP,
                     'Hinh': base64_image,
                 })
+                
             # Nếu cam có khóa
             else:
-                cursor.execute("SELECT * FROM Lock WHERE LockID = ?", i.LockID)
+                cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", i.LockID)
                 lock = cursor.fetchone()
-                cursor.execute("SELECT * FROM Camera WHERE CameraID = ?", i.CameraID)
+                cursor.execute("SELECT CameraName, RTSP FROM Camera WHERE CameraID = ?", i.CameraID)
                 cam = cursor.fetchone()
-                #--------------------------------------------------------------------------
-                cam_img = cam.CameraName
-                cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
-                img = cv2.imread(cam_img_path)
-                _, image_data = cv2.imencode('.jpg', img)
-                
-                # Chuyển đổi dữ liệu ảnh thành chuỗi base64
-                base64_image = base64.b64encode(image_data).decode("utf-8")
-                #--------------------------------------------------------------------------             
+                #----------------------------------------------------------------------        
                 camera_list.append({
                     'HomeID': i.HomeID,
                     'CameraID': i.CameraID,
