@@ -1196,10 +1196,14 @@ def delete_lock():
 
 @app.route('/api/lock/addlock', methods=['POST'])
 def addlock():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     lockid = data.get('lockid')
@@ -1234,6 +1238,8 @@ def addlock():
     except:
         msg = 'Không lấy được HomeID từ UserName'
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
     
     #-------------------------------------------------
@@ -1243,6 +1249,8 @@ def addlock():
     if cursor.fetchall():
         msg = 'Thêm khóa không thành công. Trùng LockName!!!'
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
     
     #-------------------------------------------------
@@ -1252,12 +1260,17 @@ def addlock():
         conn.commit()
         if camera_id is not None:
             cursor.execute("INSERT INTO Camera (LockID) VALUES (?)", (lockid,))
+            conn.commit()
         msg = 'Thêm khóa thành công'
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 201
     except:
         msg = 'Thêm khóa không thành công'
         print(msg)
+        cursor.close()
+        conn.close()
         return jsonify({'message': msg}), 500
     
 #---------------------------------------------------------------------------------------------------
