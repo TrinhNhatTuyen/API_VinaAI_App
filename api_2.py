@@ -752,7 +752,7 @@ def homeinfo():
         for homeid, admin_id in results:
             cursor.execute("SELECT HomeName, HomeAddress, DistrictID FROM CustomerHome WHERE HomeID = ? AND CustomerID = ?", 
                         (homeid, admin_id))
-            results_ = cursor.fetchone()
+            result = cursor.fetchone()
             # Chuyển danh sách các tuple thành danh sách các dictionary
             home_info_list.append({
                 'HomeName': result.HomeName,
@@ -899,7 +899,7 @@ def addhome():
         # Kiểm tra nếu HomeName đã tồn tại
         cursor.execute("SELECT * FROM CustomerHome WHERE CustomerID = ? AND HomeName = ?", (customerid, homename))
         if cursor.fetchall():
-            msg = 'Thêm nhà không thành công. Trùng HomeName!!!'
+            msg = 'Tên nhà đã tồn tại'
             print(msg)
             cursor.close()
             conn.close()
@@ -1190,7 +1190,7 @@ def lockinfo():
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/lock/delete-lock', methods=['POST'])
-def delete_lock():
+def delete_lock(): 
     conn = connect_to_database()
     cursor = conn.cursor()
     data = request.get_json()
@@ -1328,6 +1328,7 @@ def addlock():
         if camera_id is not None:
             cursor.execute("INSERT INTO Camera (LockID) VALUES (?)", (lockid,))
             conn.commit()
+            print(f"Đã thêm khóa {lockid} và camera có ID {camera_id}")
         msg = 'Thêm khóa thành công'
         print(msg)
         cursor.close()
@@ -2018,7 +2019,8 @@ def change_passcode():
             else:
                 # Trả về lỗi trong ds lỗi TTLock
                 errcode = response.json()['errcode']
-                cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
+                # cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode) # Tiếng Anh
+                cursor.execute("SELECT MoTa FROM ErrorCode WHERE Code = ?", errcode) # Tiếng Việt
                 error = cursor.fetchone().Description
                 print(error)
                 cursor.close()
@@ -2160,10 +2162,14 @@ def delete_passcode():
 
 # @app.route('/api/camera/add-existed-lock-to-cam', methods=['POST'])
 # def add_camera():
+#     conn = connect_to_database()
+#     cursor = conn.cursor()
 #     data = request.get_json()
 #     key = data.get('key')
 #     if key not in api_keys:
 #         print('Sai key')
+#         cursor.close()
+#         conn.close()
 #         return jsonify({'message': 'Sai key'}), 400
     
 #     camera_id = data.get('camera_id')
@@ -2176,7 +2182,13 @@ def delete_passcode():
 #     # Lưu vào bảng Camera
 #     cursor.execute("UPDATE Camera SET LockID = ? WHERE HomeID = ?",
 #                    (lock_id, camera_id))
+    
 #     conn.commit()
+#     msg = f"Đã thêm khóa {ten_tai_khoan_email_sdt}"
+#     print(msg)
+#     cursor.close()
+#     conn.close()
+#     return jsonify({'message': msg}), 404
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/camera/get-user-camera', methods=['POST'])
