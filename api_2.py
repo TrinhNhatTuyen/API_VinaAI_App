@@ -3234,7 +3234,7 @@ def get_camera_data():
 ####################################################################################################
 
 @app.route('/api/faceid/get-face', methods=['POST'])
-def upload_image():
+def get_face():
     """ 
         1. App tải lên hình ảnh
         2. Kiểm tra (face_name, homeid) có trong bảng Face chưa, nếu chưa INSERT vào
@@ -3318,11 +3318,68 @@ def upload_image():
     
     # Chuyển đổi dữ liệu ảnh thành chuỗi base64
     base64_image = base64.b64encode(image_data).decode("utf-8")
-    #-----------------------------------------------------------------------------------------------    
+    #----------------------------------------------------------------- 
     # Trả về chuỗi base64 cho app
     print("Vừa trả về chuỗi base64")
     return Response(base64_image, mimetype='text/plain')
 
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/faceid/upload-image', methods=['POST'])
+def faceid_upload_image():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    face_name = data.get('face_name')
+    homeid = data.get('homeid')
+    base64 = data.get('base64')
+    
+    print("homeid:", homeid, ' - ', type(homeid))
+    print("face_name:", face_name, ' - ', type(face_name))
+    
+    # Check xem ảnh này đã được thêm vào dữ liệu nhận diện của căn hộ này chưa
+    cursor.execute("SELECT FaceName FROM FaceRegData WHERE HomeID = ? AND Base64 = ?", (homeid, base64))
+    row = cursor.fetchone()
+    if row is not None:
+        added_face_name = row.FaceName
+        msg = f'Ảnh này đã được thêm với tên {added_face_name}'
+        print(msg)
+        return jsonify({'message': msg}), 400
+        
+    current_time = datetime.datetime.now()
+    formatted_time = current_time.strftime("%Y-%m-%d_%Hh%Mm%Ss")
+    file_name = f"{formatted_time}.jpg"
+    upload_folder = 'hinhtrain'
+    # Kiểm tra (face_name, homeid) có trong bảng Face chưa, nếu chưa INSERT vào
+    cursor.execute("SELECT FaceID FROM FaceRegData WHERE FaceName = ? AND HomeID = ?",
+                   (face_name, homeid))
+    row = cursor.fetchone()
+    if row:
+        print(f'{face_name} ĐÃ CÓ ảnh trong csdl, bắt đầu thêm ảnh...')
+        face_id = row.FaceID
+    else:
+        print(f'{face_name} CHƯA CÓ ảnh trong csdl, bắt đầu thêm ảnh...')
+        cursor.execute("SELECT MAX(FaceID) FROM FaceRegData")
+        max_face_id = cursor.fetchone()[0]
+        face_id = (max_face_id + 1) if max_face_id!=None else 1
+        
+    image_path = os.path.join(upload_folder, str(homeid), str(face_id), file_name).replace("\\", "/")
+    cursor.execute("""INSERT INTO FaceRegData (FaceID, FaceName, HomeID, ImagePath, Base64) 
+                    VALUES (?, ?, ?, ?, ?)""",
+                (face_id, face_name, homeid, image_path, base64))
+    conn.commit()
+    msg = f"Thêm ảnh thành công"
+    print(msg)
+    cursor.close()
+    conn.close()
+    return jsonify({'message': msg}), 201
 ####################################################################################################
 ####################################################################################################
 if __name__ == '__main__':
