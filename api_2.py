@@ -1,13 +1,16 @@
 
 from flask import Flask, request, jsonify, Response
-import socket, pyodbc, random, time, os, cv2, base64, hashlib, time, requests, datetime, json
+import socket, pyodbc, random, time, os, cv2, base64, hashlib, requests, datetime, json, math
+from matplotlib import pyplot
 import numpy as np
+import pandas as pd
 app = Flask(__name__)
 value = None
 random_banner = ''
 current_banner = ''
 banner_folder_path = 'banner'
 cam_img_folder_path = 'cam_img'
+detectorssd = cv2.dnn.readNetFromCaffe("pre_model/deploy.prototxt","pre_model/res10_300x300_ssd_iter_140000.caffemodel")
 #---------------------------------------------------------------------------------------------------
 def connect_to_database():
     max_retries = 5
@@ -31,8 +34,48 @@ def connect_to_database():
                 print("Không thể kết nối đến cơ sở dữ liệu sau nhiều lần thử. Đã đạt đến giới hạn thử lại.")
                 raise
 
-# conn = connect_to_database()
-# cursor = conn.cursor()
+def chuyen_base64_sang_anh(anh_base64):
+        try:
+            anh_base64 = np.frombuffer(base64.b64decode(anh_base64), dtype=np.uint8)
+            anh_base64 = cv2.imdecode(anh_base64, cv2.IMREAD_ANYCOLOR)
+        except:
+            return "chuyen fail"
+        return anh_base64
+
+
+def padding(imgface,target_size=(224,224)):
+    try:
+        tile= target_size[0]/(imgface.shape[0]+1)
+        he=math.floor(tile*imgface.shape[0])
+        wi=math.floor(tile*imgface.shape[1])
+
+        imgface=cv2.resize(imgface,(wi,he))
+        target_size=(224, 224)
+        factor_0 = target_size[0] / imgface.shape[0]
+        factor_1 = target_size[1] / imgface.shape[1]
+        factor = min(factor_0, factor_1)
+        dsize = (int(imgface.shape[1] * factor), int(imgface.shape[0] * factor))
+        imgface = cv2.resize(imgface, dsize)
+        # Then pad the other side to the target size by adding black pixels
+        diff_0 = target_size[0] - imgface.shape[0]
+        diff_1 = target_size[1] - imgface.shape[1]
+        # Put the base image in the middle of the padded image
+        imgface = np.pad(imgface, ((diff_0 // 2, diff_0 - diff_0 // 2), (diff_1 // 2, diff_1 - diff_1 // 2), (0, 0)), 'constant')
+        #double check: if target image is not still the same size with target.
+        if imgface.shape[0:2] != target_size:
+            imgface = cv2.resize(imgface, target_size)
+        return imgface
+    except:
+        print("err padd")
+        return imgface
+
+def base64_to_array(anh_base64):
+        try:
+            anh_base64 = np.frombuffer(base64.b64decode(anh_base64), dtype=np.uint8)
+            anh_base64 = cv2.imdecode(anh_base64, cv2.IMREAD_ANYCOLOR)
+        except:
+            return "chuyen fail"
+        return anh_base64
 #---------------------------------------------------------------------------------------------------
 # Lấy địa chỉ IP của máy
 def get_ip_address():
@@ -723,12 +766,17 @@ def homeinfo():
         # Chuyển danh sách các tuple thành danh sách các dictionary
         
         for result in results:
+            # Lấy các cam trong nhà đó
+            cursor.execute("SELECT CameraName, CameraID FROM Camera WHERE HomeID = ?", result.HomeID)
+            cam = cursor.fetchall()
             home_info_list.append({
                 'HomeName': result.HomeName,
                 'HomeAddress': result.HomeAddress,
                 'DistrictID': result.DistrictID,
                 'HomeID': result.HomeID,
                 'Owner': '1',
+                'CameraID': [i.CameraID for i in cam],
+                'CameraName': [i.CameraName for i in cam],
             })
         
         if len(results)==0:
@@ -753,6 +801,9 @@ def homeinfo():
             cursor.execute("SELECT HomeName, HomeAddress, DistrictID FROM CustomerHome WHERE HomeID = ? AND CustomerID = ?", 
                         (homeid, admin_id))
             result = cursor.fetchone()
+            # Lấy các cam trong nhà đó
+            cursor.execute("SELECT CameraName, CameraID FROM Camera WHERE HomeID = ?", result.HomeID)
+            cam = cursor.fetchall()
             # Chuyển danh sách các tuple thành danh sách các dictionary
             home_info_list.append({
                 'HomeName': result.HomeName,
@@ -760,6 +811,8 @@ def homeinfo():
                 'DistrictID': result.DistrictID,
                 'HomeID': homeid,
                 'Owner': '0',
+                'CameraID': [i.CameraID for i in cam],
+                'CameraName': [i.CameraName for i in cam],
             })
         if len(results)==0:
             print(f"Không có căn hộ nào User {ten_tai_khoan_email_sdt} được thêm quyền")
@@ -1274,7 +1327,7 @@ def addlock():
         return jsonify({'message': 'Sai key'}), 400
     
     lockid = data.get('lockid')
-    camera_id = data.get('camera_id')
+    camera_id = data.get('camera_id', None)
     lockname = data.get('lockname')
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     homename = data.get('homename')
@@ -1303,6 +1356,11 @@ def addlock():
         results = cursor.fetchall()
         homeid = results[0][0]
     except:
+        cursor.execute("""SELECT HomeMember.HomeID
+                       FROM HomeMember
+                       INNER JOIN CustomerHome ON HomeMember.HomeID = CustomerHome.HomeID
+                       WHERE ssCustomerHome.HomeName = ?
+                       """, (homename,))
         msg = 'Không lấy được HomeID từ UserName'
         print(msg)
         cursor.close()
@@ -1568,8 +1626,10 @@ def delete_home_member():
                         print(msg)
                     else:
                         errcode = response.json()['errcode']
-                        cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
-                        error = cursor.fetchone().Description
+                        # cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
+                        # error = cursor.fetchone().Description
+                        cursor.execute("SELECT MoTa FROM ErrorCode WHERE Code = ?", errcode)
+                        error = cursor.fetchone().MoTa
                         print(error)
                         cursor.close()
                         conn.close()
@@ -1714,8 +1774,10 @@ def update_history():
     if history_code==0:
         history_description = "Mở khóa thành công"
     else:
-        cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", history_code)
-        history_description = "Lỗi: " + cursor.fetchone().Description
+        # cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", history_code)
+        # history_description = "Lỗi: " + cursor.fetchone().Description
+        cursor.execute("SELECT MoTa FROM ErrorCode WHERE Code = ?", history_code)
+        history_description = "Lỗi: " + cursor.fetchone().MoTa
         
     # Chuyển đổi định dạng datetime
     # try:
@@ -1894,8 +1956,10 @@ def add_custom_passcode():
     if response.status_code == 200:
         try:
             errcode = response.json()['errcode']
-            cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
-            error = cursor.fetchone().Description
+            # cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
+            # error = cursor.fetchone().Description
+            cursor.execute("SELECT MoTa FROM ErrorCode WHERE Code = ?", errcode)
+            error = cursor.fetchone().MoTa
             print(error)
             cursor.close()
             conn.close()
@@ -2020,8 +2084,9 @@ def change_passcode():
                 # Trả về lỗi trong ds lỗi TTLock
                 errcode = response.json()['errcode']
                 # cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode) # Tiếng Anh
-                cursor.execute("SELECT MoTa FROM ErrorCode WHERE Code = ?", errcode) # Tiếng Việt
                 error = cursor.fetchone().Description
+                cursor.execute("SELECT MoTa FROM ErrorCode WHERE Code = ?", errcode) # Tiếng Việt
+                error = cursor.fetchone().MoTa
                 print(error)
                 cursor.close()
                 conn.close()
@@ -2112,8 +2177,10 @@ def delete_passcode():
             else:
                 # Trả về lỗi trong ds lỗi TTLock
                 errcode = response.json()['errcode']
-                cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
-                error = cursor.fetchone().Description
+                # cursor.execute("SELECT Description FROM ErrorCode WHERE Code = ?", errcode)
+                # error = cursor.fetchone().Description
+                cursor.execute("SELECT MoTa FROM ErrorCode WHERE Code = ?", errcode)
+                error = cursor.fetchone().MoTa
                 print(error)
                 cursor.close()
                 conn.close()
@@ -2279,7 +2346,7 @@ def get_camera():
                 camera_list.append({
                     'HomeID': i.HomeID,
                     'CameraID': i.CameraID,
-                    'LockID': lock.LockID,
+                    'LockID': i.LockID,
                     'LockName': lock.LockName,
                     'CameraName': cam.CameraName,
                     'RTSP': cam.RTSP,
@@ -3166,7 +3233,95 @@ def get_camera_data():
     return json.dumps(camera_data), 200
 ####################################################################################################
 
+@app.route('/api/faceid/get-face', methods=['POST'])
+def upload_image():
+    """ 
+        1. App tải lên hình ảnh
+        2. Kiểm tra (face_name, homeid) có trong bảng Face chưa, nếu chưa INSERT vào
+        3. Máy chủ lưu lại ảnh gốc trong "hinhanh" với định dạng 'hinhanh/{homeid}/{face_id}/2023-09-18_11h51m03s.jpg'
+        4. Lấy ảnh khuôn mặt
+        5. Không phát hiện mặt: xóa ảnh gốc trong "hinhanh", return "không phát hiện mặt
+           Phát hiện mặt: cắt, resize thành 224x224, lưu sang "hinhtrain" với định dạng 'hinhtrain/{homeid}/{face_id}/2023-09-18_11h51m03s.jpg'
+        
+    """
+    
+    data = request.form
+    key = data['key']
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
 
+    
+    if 'image' not in request.files:
+        return jsonify({"message": "Chưa truyền file ảnh"}), 400
+
+    file = request.files['image']
+        
+    # Lưu ảnh nhận được từ request vào máy chạy API
+    if not os.path.exists('hinhanh'):
+        os.makedirs('hinhanh')
+    save_path = 'hinhanh/lastest_upload.jpg'
+    file.save(save_path)
+    
+    #-----------------------------------------------------------------------------------------------
+    
+    # Lấy ảnh khuôn mặt
+    if not os.path.exists('hinhtrain'):
+        os.makedirs('hinhtrain')
+    pixels = pyplot.imread(save_path)
+    base_img = pixels.copy()
+    h = base_img.shape[0]
+    w = base_img.shape[1]
+    original_size = base_img.shape
+    target_size = (300, 300)
+    img = cv2.resize(pixels, target_size)
+    aspect_ratio_x = (original_size[1] / target_size[1])
+    aspect_ratio_y = (original_size[0] / target_size[0])
+    imageBlob = cv2.dnn.blobFromImage(img, 1.0, (300, 300), (104.0, 177.0, 123.0))
+    detectorssd.setInput(imageBlob)
+    detections = detectorssd.forward()
+    column_labels = ["img_id", "is_face", "confidence", "left", "top", "right", "bottom"]
+    detections_df = pd.DataFrame(detections[0][0], columns = column_labels)
+
+    detections_df = detections_df[detections_df['is_face'] == 1]
+    detections_df = detections_df[detections_df['confidence'] >= 0.5]
+    
+    if detections_df.empty:
+        return jsonify({"message": "Không tìm thấy khuôn mặt trong ảnh"}), 400
+    
+    detections_df['left'] = (detections_df['left'] * 300).astype(int)
+    detections_df['bottom'] = (detections_df['bottom'] * 300).astype(int)
+    detections_df['right'] = (detections_df['right'] * 300).astype(int)
+    detections_df['top'] = (detections_df['top'] * 300).astype(int)
+    # Tìm chỉ số của dòng có confidence lớn nhất
+    max_confidence_idx = detections_df['confidence'].idxmax()
+    # Trích xuất dòng có confidence lớn nhất
+    max_confidence_instance = detections_df.loc[max_confidence_idx]
+    left = max_confidence_instance["left"]; right = max_confidence_instance["right"]
+    bottom = max_confidence_instance["bottom"]; top = max_confidence_instance["top"]
+    if top < 0: top = 0
+    if left < 0: left = 0
+    if bottom > h: bottom = h
+    if right > w: right = w
+
+    crop_img = base_img[int(top * aspect_ratio_y):int(bottom * aspect_ratio_y),
+                        int(left * aspect_ratio_x):int(right * aspect_ratio_x)]
+    crop_img = cv2.cvtColor(crop_img, cv2.COLOR_BGR2RGB)
+    crop_img = padding(crop_img, target_size=(224, 224))
+    
+    crop_path = 'hinhanh/lastest_upload.jpg'
+    if os.path.exists(crop_path):
+        os.remove(crop_path)
+    cv2.imwrite(crop_path, crop_img)
+
+    _, image_data = cv2.imencode('.jpg', crop_img)
+    
+    # Chuyển đổi dữ liệu ảnh thành chuỗi base64
+    base64_image = base64.b64encode(image_data).decode("utf-8")
+    #-----------------------------------------------------------------------------------------------    
+    # Trả về chuỗi base64 cho app
+    print("Vừa trả về chuỗi base64")
+    return Response(base64_image, mimetype='text/plain')
 
 ####################################################################################################
 ####################################################################################################
