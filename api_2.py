@@ -3356,6 +3356,8 @@ def faceid_upload_image():
     conn.close()
     return jsonify({'message': msg}), 201
 
+#---------------------------------------------------------------------------------------------------
+
 @app.route('/api/home/get-facename', methods=['POST'])
 def get_facename_in_home():
     conn = connect_to_database()
@@ -3389,6 +3391,38 @@ def get_facename_in_home():
     cursor.close()
     conn.close()
     return json.dumps(facename_list), 200
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/faceid/get-image', methods=['POST'])
+def get_images_by_faceid():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    faceid = data.get('faceid')
+    print("faceid:", faceid, ' - ', type(faceid))
+    
+    cursor.execute("SELECT ImageID, Base64 FROM FaceRegData WHERE FaceID = ?", (faceid,))
+    rows = cursor.fetchall()
+    image_list = []
+    for row in rows:
+        image_list.append({
+            'ImageID': row.ImageID,
+            'Base64': row.Base64,
+        })
+    
+    print(f"Trả về danh sách các hình ảnh cho FaceID {faceid}")
+    cursor.close()
+    conn.close()
+    return json.dumps(image_list), 200
+
     
 #########################################################################################################################
 #########################################################################################################################
