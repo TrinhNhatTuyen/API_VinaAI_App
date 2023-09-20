@@ -1333,7 +1333,7 @@ def addlock():
     print("homename:", homename, ' - ', type(homename))
     
     #-------------------------------------------------
-    try:    
+    try:
         # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
@@ -1350,12 +1350,14 @@ def addlock():
         results = cursor.fetchall()
         homeid = results[0][0]
     except:
-        cursor.execute("""SELECT HomeMember.HomeID
-                       FROM HomeMember
-                       INNER JOIN CustomerHome ON HomeMember.HomeID = CustomerHome.HomeID
-                       WHERE ssCustomerHome.HomeName = ?
-                       """, (homename,))
-        msg = 'Không lấy được HomeID từ UserName'
+        # Nếu cho home member thêm khóa, lấy ra homeid của căn mà người này được thêm quyền
+        # cursor.execute("""SELECT HomeMember.HomeID
+        #                FROM HomeMember
+        #                INNER JOIN CustomerHome ON HomeMember.HomeID = CustomerHome.HomeID
+        #                WHERE CustomerHome.HomeName = ?
+        #                """, (homename,))
+        
+        msg = 'Không lấy được HomeID từ customer_id và homename'
         print(msg)
         cursor.close()
         conn.close()
@@ -3245,17 +3247,50 @@ def faceid_upload_image():
         conn.close()
         return jsonify({'message': 'Sai key'}), 400
 
-    
     if 'image' not in request.files:
+        print("Chưa truyền file ảnh")
         cursor.close()
         conn.close()
         return jsonify({"message": "Chưa truyền file ảnh"}), 400
 
     face_name = data['face_name']
-    homeid = int(data['homeid'])
     
-    print("homeid:", homeid, ' - ', type(homeid))
-    print("face_name:", face_name, ' - ', type(face_name))
+    ten_tai_khoan_email_sdt = data['ten_tai_khoan_email_sdt']
+    homename = data['homename']
+    
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    print("homename:", homename, ' - ', type(homename))
+    
+    #---------------------------------------- Lấy ra homeid -------------------------------------------
+    try:
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        results = cursor.fetchall()
+        customer_id = results[0][0]
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
+    try:
+        # Từ CustomerID lấy HomeID trong bảng CustomerHome
+        cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ? AND HomeName = ?", (customer_id, homename))
+        results = cursor.fetchall()
+        homeid = results[0][0]
+    except:
+        msg = f"User {ten_tai_khoan_email_sdt} không phải chủ của căn hộ"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
     
     file = request.files['image']
         
@@ -3265,9 +3300,8 @@ def faceid_upload_image():
     save_path = 'hinhanh/lastest_upload.jpg'
     file.save(save_path)
     
-    #-----------------------------------------------------------------------------------------------
+    #---------------------------------------- Lấy ảnh khuôn mặt base64 --------------------------------------------
     
-    # Lấy ảnh khuôn mặt
     if not os.path.exists('hinhtrain'):
         os.makedirs('hinhtrain')
     pixels = pyplot.imread(save_path)
@@ -3325,9 +3359,8 @@ def faceid_upload_image():
     # Chuyển đổi dữ liệu ảnh thành chuỗi base64
     base64_image = base64.b64encode(image_data).decode("utf-8")
     
-    #-----------------------------------------------------------------------------------------------
+    #------------------------------------------ Up ảnh lên database -------------------------------------------
     
-    # Up ảnh lên database
     current_time = datetime.datetime.now()
     formatted_time = current_time.strftime("%Y-%m-%d_%Hh%Mm%Ss")
     file_name = f"{formatted_time}.jpg"
