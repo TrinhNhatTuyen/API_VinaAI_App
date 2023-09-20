@@ -34,13 +34,13 @@ def connect_to_database():
                 print("Không thể kết nối đến cơ sở dữ liệu sau nhiều lần thử. Đã đạt đến giới hạn thử lại.")
                 raise
 
-def chuyen_base64_sang_anh(anh_base64):
+def base64_to_array(anh_base64):
         try:
-            anh_base64 = np.frombuffer(base64.b64decode(anh_base64), dtype=np.uint8)
-            anh_base64 = cv2.imdecode(anh_base64, cv2.IMREAD_ANYCOLOR)
+            img_arr = np.frombuffer(base64.b64decode(anh_base64), dtype=np.uint8)
+            img_arr = cv2.imdecode(img_arr, cv2.IMREAD_ANYCOLOR)
         except:
-            return "chuyen fail"
-        return anh_base64
+            return "Không chuyển được ảnh base64 sang array"
+        return img_arr
 
 
 def padding(imgface,target_size=(224,224)):
@@ -69,13 +69,7 @@ def padding(imgface,target_size=(224,224)):
         print("err padd")
         return imgface
 
-def base64_to_array(anh_base64):
-        try:
-            anh_base64 = np.frombuffer(base64.b64decode(anh_base64), dtype=np.uint8)
-            anh_base64 = cv2.imdecode(anh_base64, cv2.IMREAD_ANYCOLOR)
-        except:
-            return "chuyen fail"
-        return anh_base64
+
 #---------------------------------------------------------------------------------------------------
 # Lấy địa chỉ IP của máy
 def get_ip_address():
@@ -3231,30 +3225,178 @@ def get_camera_data():
     cursor.close()
     conn.close()
     return json.dumps(camera_data), 200
+    
+#---------------------------------------------------------------------------------------------------
+
+
 ####################################################################################################
 
-@app.route('/api/faceid/get-face', methods=['POST'])
-def get_face():
-    """ 
-        1. App tải lên hình ảnh
-        2. Kiểm tra (face_name, homeid) có trong bảng Face chưa, nếu chưa INSERT vào
-        3. Máy chủ lưu lại ảnh gốc trong "hinhanh" với định dạng 'hinhanh/{homeid}/{face_id}/2023-09-18_11h51m03s.jpg'
-        4. Lấy ảnh khuôn mặt
-        5. Không phát hiện mặt: xóa ảnh gốc trong "hinhanh", return "không phát hiện mặt
-           Phát hiện mặt: cắt, resize thành 224x224, lưu sang "hinhtrain" với định dạng 'hinhtrain/{homeid}/{face_id}/2023-09-18_11h51m03s.jpg'
-        
-    """
+# @app.route('/api/faceid/get-face', methods=['POST'])
+# def get_face():
+
     
+#     data = request.form
+#     key = data['key']
+#     if key not in api_keys:
+#         print('Sai key')
+#         return jsonify({'message': 'Sai key'}), 400
+
+    
+#     if 'image' not in request.files:
+#         return jsonify({"message": "Chưa truyền file ảnh"}), 400
+
+#     file = request.files['image']
+        
+#     # Lưu ảnh nhận được từ request vào máy chạy API
+#     if not os.path.exists('hinhanh'):
+#         os.makedirs('hinhanh')
+#     save_path = 'hinhanh/lastest_upload.jpg'
+#     file.save(save_path)
+    
+#     #-----------------------------------------------------------------------------------------------
+    
+#     # Lấy ảnh khuôn mặt
+#     if not os.path.exists('hinhtrain'):
+#         os.makedirs('hinhtrain')
+#     pixels = pyplot.imread(save_path)
+#     base_img = pixels.copy()
+#     h = base_img.shape[0]
+#     w = base_img.shape[1]
+#     original_size = base_img.shape
+#     target_size = (300, 300)
+#     img = cv2.resize(pixels, target_size)
+#     aspect_ratio_x = (original_size[1] / target_size[1])
+#     aspect_ratio_y = (original_size[0] / target_size[0])
+#     imageBlob = cv2.dnn.blobFromImage(img, 1.0, (300, 300), (104.0, 177.0, 123.0))
+#     detectorssd.setInput(imageBlob)
+#     detections = detectorssd.forward()
+#     column_labels = ["img_id", "is_face", "confidence", "left", "top", "right", "bottom"]
+#     detections_df = pd.DataFrame(detections[0][0], columns = column_labels)
+
+#     detections_df = detections_df[detections_df['is_face'] == 1]
+#     detections_df = detections_df[detections_df['confidence'] >= 0.5]
+    
+#     if detections_df.empty:
+#         msg = "Không tìm thấy khuôn mặt trong ảnh"
+#         print(msg)
+#         return jsonify({"message": msg}), 400
+    
+#     detections_df['left'] = (detections_df['left'] * 300).astype(int)
+#     detections_df['bottom'] = (detections_df['bottom'] * 300).astype(int)
+#     detections_df['right'] = (detections_df['right'] * 300).astype(int)
+#     detections_df['top'] = (detections_df['top'] * 300).astype(int)
+#     # Tìm chỉ số của dòng có confidence lớn nhất
+#     max_confidence_idx = detections_df['confidence'].idxmax()
+#     # Trích xuất dòng có confidence lớn nhất
+#     max_confidence_instance = detections_df.loc[max_confidence_idx]
+#     left = max_confidence_instance["left"]; right = max_confidence_instance["right"]
+#     bottom = max_confidence_instance["bottom"]; top = max_confidence_instance["top"]
+#     if top < 0: top = 0
+#     if left < 0: left = 0
+#     if bottom > h: bottom = h
+#     if right > w: right = w
+
+#     crop_img = base_img[int(top * aspect_ratio_y):int(bottom * aspect_ratio_y),
+#                         int(left * aspect_ratio_x):int(right * aspect_ratio_x)]
+#     crop_img = cv2.cvtColor(crop_img, cv2.COLOR_BGR2RGB)
+#     crop_img = padding(crop_img, target_size=(224, 224))
+    
+#     crop_path = 'hinhtrain/lastest_upload.jpg'
+#     if os.path.exists(crop_path):
+#         os.remove(crop_path)
+#     cv2.imwrite(crop_path, crop_img)
+
+#     _, image_data = cv2.imencode('.jpg', crop_img)
+    
+#     # Chuyển đổi dữ liệu ảnh thành chuỗi base64
+#     base64_image = base64.b64encode(image_data).decode("utf-8")
+#     #----------------------------------------------------------------- 
+#     # Trả về chuỗi base64 cho app
+#     print("Vừa trả về chuỗi base64")
+#     return Response(base64_image, mimetype='text/plain')
+
+#---------------------------------------------------------------------------------------------------
+
+# @app.route('/api/faceid/upload-image', methods=['POST'])
+# def faceid_upload_image():
+#     conn = connect_to_database()
+#     cursor = conn.cursor()
+#     data = request.get_json()
+#     key = data.get('key')
+#     if key not in api_keys:
+#         print('Sai key')
+#         cursor.close()
+#         conn.close()
+#         return jsonify({'message': 'Sai key'}), 400
+    
+#     face_name = data.get('face_name')
+#     homeid = data.get('homeid')
+#     base64 = data.get('base64')
+    
+#     print("homeid:", homeid, ' - ', type(homeid))
+#     print("face_name:", face_name, ' - ', type(face_name))
+    
+#     # Check xem ảnh này đã được thêm vào dữ liệu nhận diện của căn hộ này chưa
+#     cursor.execute("SELECT FaceName FROM FaceRegData WHERE HomeID = ? AND Base64 = ?", (homeid, base64))
+#     row = cursor.fetchone()
+#     if row is not None:
+#         added_face_name = row.FaceName
+#         msg = f'Ảnh này đã được thêm với tên {added_face_name}'
+#         print(msg)
+#         return jsonify({'message': msg}), 400
+        
+#     current_time = datetime.datetime.now()
+#     formatted_time = current_time.strftime("%Y-%m-%d_%Hh%Mm%Ss")
+#     file_name = f"{formatted_time}.jpg"
+#     upload_folder = 'hinhtrain'
+#     # Kiểm tra (face_name, homeid) có trong bảng Face chưa, nếu chưa INSERT vào
+#     cursor.execute("SELECT FaceID FROM FaceRegData WHERE FaceName = ? AND HomeID = ?",
+#                    (face_name, homeid))
+#     row = cursor.fetchone()
+#     if row:
+#         print(f'{face_name} ĐÃ CÓ ảnh trong csdl, bắt đầu thêm ảnh...')
+#         face_id = row.FaceID
+#     else:
+#         print(f'{face_name} CHƯA CÓ ảnh trong csdl, bắt đầu thêm ảnh...')
+#         cursor.execute("SELECT MAX(FaceID) FROM FaceRegData")
+#         max_face_id = cursor.fetchone()[0]
+#         face_id = (max_face_id + 1) if max_face_id!=None else 1
+        
+#     image_path = os.path.join(upload_folder, str(homeid), str(face_id), file_name).replace("\\", "/")
+#     cursor.execute("""INSERT INTO FaceRegData (FaceID, FaceName, HomeID, ImagePath, Base64) 
+#                     VALUES (?, ?, ?, ?, ?)""",
+#                 (face_id, face_name, homeid, image_path, base64))
+#     conn.commit()
+#     msg = f"Thêm ảnh thành công"
+#     print(msg)
+#     cursor.close()
+#     conn.close()
+#     return jsonify({'message': msg}), 201
+
+@app.route('/api/faceid/upload-image', methods=['POST'])
+def faceid_upload_image():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.form
     key = data['key']
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
 
     
     if 'image' not in request.files:
+        cursor.close()
+        conn.close()
         return jsonify({"message": "Chưa truyền file ảnh"}), 400
 
+    face_name = data['face_name']
+    homeid = int(data['homeid'])
+    
+    print("homeid:", homeid, ' - ', type(homeid))
+    print("face_name:", face_name, ' - ', type(face_name))
+    
     file = request.files['image']
         
     # Lưu ảnh nhận được từ request vào máy chạy API
@@ -3287,7 +3429,11 @@ def get_face():
     detections_df = detections_df[detections_df['confidence'] >= 0.5]
     
     if detections_df.empty:
-        return jsonify({"message": "Không tìm thấy khuôn mặt trong ảnh"}), 400
+        msg = "Không tìm thấy khuôn mặt trong ảnh"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({"message": msg}), 400
     
     detections_df['left'] = (detections_df['left'] * 300).astype(int)
     detections_df['bottom'] = (detections_df['bottom'] * 300).astype(int)
@@ -3309,7 +3455,7 @@ def get_face():
     crop_img = cv2.cvtColor(crop_img, cv2.COLOR_BGR2RGB)
     crop_img = padding(crop_img, target_size=(224, 224))
     
-    crop_path = 'hinhanh/lastest_upload.jpg'
+    crop_path = 'hinhtrain/lastest_upload.jpg'
     if os.path.exists(crop_path):
         os.remove(crop_path)
     cv2.imwrite(crop_path, crop_img)
@@ -3318,41 +3464,10 @@ def get_face():
     
     # Chuyển đổi dữ liệu ảnh thành chuỗi base64
     base64_image = base64.b64encode(image_data).decode("utf-8")
-    #----------------------------------------------------------------- 
-    # Trả về chuỗi base64 cho app
-    print("Vừa trả về chuỗi base64")
-    return Response(base64_image, mimetype='text/plain')
-
-#---------------------------------------------------------------------------------------------------
-
-@app.route('/api/faceid/upload-image', methods=['POST'])
-def faceid_upload_image():
-    conn = connect_to_database()
-    cursor = conn.cursor()
-    data = request.get_json()
-    key = data.get('key')
-    if key not in api_keys:
-        print('Sai key')
-        cursor.close()
-        conn.close()
-        return jsonify({'message': 'Sai key'}), 400
     
-    face_name = data.get('face_name')
-    homeid = data.get('homeid')
-    base64 = data.get('base64')
+    #-----------------------------------------------------------------------------------------------
     
-    print("homeid:", homeid, ' - ', type(homeid))
-    print("face_name:", face_name, ' - ', type(face_name))
-    
-    # Check xem ảnh này đã được thêm vào dữ liệu nhận diện của căn hộ này chưa
-    cursor.execute("SELECT FaceName FROM FaceRegData WHERE HomeID = ? AND Base64 = ?", (homeid, base64))
-    row = cursor.fetchone()
-    if row is not None:
-        added_face_name = row.FaceName
-        msg = f'Ảnh này đã được thêm với tên {added_face_name}'
-        print(msg)
-        return jsonify({'message': msg}), 400
-        
+    # Up ảnh lên database
     current_time = datetime.datetime.now()
     formatted_time = current_time.strftime("%Y-%m-%d_%Hh%Mm%Ss")
     file_name = f"{formatted_time}.jpg"
@@ -3373,7 +3488,7 @@ def faceid_upload_image():
     image_path = os.path.join(upload_folder, str(homeid), str(face_id), file_name).replace("\\", "/")
     cursor.execute("""INSERT INTO FaceRegData (FaceID, FaceName, HomeID, ImagePath, Base64) 
                     VALUES (?, ?, ?, ?, ?)""",
-                (face_id, face_name, homeid, image_path, base64))
+                (face_id, face_name, homeid, image_path, base64_image))
     conn.commit()
     msg = f"Thêm ảnh thành công"
     print(msg)
