@@ -3456,6 +3456,69 @@ def get_images_by_faceid():
     conn.close()
     return json.dumps(image_list), 200
 
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/faceid/delete-face-img', methods=['POST'])
+def delete_face_img():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    image_id = data.get('image_id')
+    print("image_id:", image_id, ' - ', type(image_id))
+
+    try:
+        cursor.execute("DELETE FROM FaceRegData WHERE ImageID = ?", (image_id,))
+        conn.commit()
+        msg = f"Đã xóa ảnh"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 200
+    except Exception as e:
+        msg = f"Không xóa được ảnh"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 500
+    
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/faceid/delete-face', methods=['POST'])
+def delete_face():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    faceid = data.get('faceid')
+    print("faceid:", faceid, ' - ', type(faceid))
+
+    try:
+        cursor.execute("DELETE FROM FaceRegData WHERE FaceID = ?", (faceid,))
+        conn.commit()
+        msg = f"Đã xóa Face có ID là {faceid}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 200
+    except Exception as e:
+        msg = f"Không xóa được Face có ID là {faceid}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 500
     
 #########################################################################################################################
 #########################################################################################################################
