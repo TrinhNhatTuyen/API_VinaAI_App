@@ -3209,7 +3209,7 @@ def get_camera_data():
         return jsonify({'message': 'Sai key'}), 400
     
     # Truy vấn SQL để lấy dữ liệu từ bảng Camera
-    cursor.execute("SELECT CameraID, HomeID, CameraName, RTSP, LockpickingArea, ClimbingArea FROM Camera")
+    cursor.execute("SELECT CameraID, HomeID, CameraName, RTSP, LockpickingArea, ClimbingArea, RelatedCameraID FROM Camera")
     
     # Trích xuất dữ liệu từ kết quả truy vấn
     camera_data = []
@@ -3222,6 +3222,7 @@ def get_camera_data():
             'RTSP': row.RTSP,
             'LockpickingArea': json.loads(row.LockpickingArea) if row.LockpickingArea else None,
             'ClimbingArea': json.loads(row.ClimbingArea) if row.ClimbingArea else None,
+            'RelatedCameraID': row.RelatedCameraID,
         })
     print(f"Trả về thông tin tất cả Camera")
     cursor.close()
@@ -3262,8 +3263,8 @@ def faceid_upload_image():
     print("homename:", homename, ' - ', type(homename))
     
     #---------------------------------------- Lấy ra homeid -------------------------------------------
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
     try:
-        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
         if "@" in ten_tai_khoan_email_sdt:
             cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
         elif ten_tai_khoan_email_sdt.isdigit():
@@ -3280,8 +3281,8 @@ def faceid_upload_image():
         conn.close()
         return jsonify({'message': msg}), 404
     
+    # Từ CustomerID lấy HomeID trong bảng CustomerHome
     try:
-        # Từ CustomerID lấy HomeID trong bảng CustomerHome
         cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ? AND HomeName = ?", (customer_id, homename))
         results = cursor.fetchall()
         homeid = results[0][0]
@@ -3403,24 +3404,66 @@ def get_facename_in_home():
         conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
-    homeid = data.get('homeid')
-    print("homeid:", homeid, ' - ', type(homeid))
+    ten_tai_khoan_email_sdt = data['ten_tai_khoan_email_sdt']
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     
-    cursor.execute("SELECT DISTINCT FaceID, FaceName FROM FaceRegData WHERE HomeID = ?", (homeid,))
+    #---------------------------------------- Lấy ra customer_id -------------------------------------------
+    try:
+        # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        results = cursor.fetchall()
+        customer_id = results[0][0]
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
+    # Từ CustomerID lấy danh sách HomeID của người đó trong bảng CustomerHome (k tính camera được thêm quyền)
+    try:
+        cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ?", (customer_id,))
+        homeid_list = [row[0] for row in cursor.fetchall()]
+    except:
+        msg = f"Lỗi! Không lấy được homeid của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
+    # Lấy ra danh sách những khuôn mặt được thêm vào dữ liệu nhận diện của các căn trong "homeid_list"
+    cursor.execute("""
+                    SELECT DISTINCT FaceID, FaceName, HomeID
+                    FROM FaceRegData 
+                    WHERE HomeID IN ({}) 
+                    ORDER BY HomeID
+                   """.format(', '.join(map(str, homeid_list)))
+                   )
     rows = cursor.fetchall()
+    
     facename_list = []
     for row in rows:
         # Tính số lượng ảnh của mỗi người đã thêm vào dữ liệu nhận diện
         cursor.execute("SELECT COUNT(*) FROM FaceRegData WHERE FaceID = ?", (row.FaceID,))
         number_of_images = cursor.fetchone()[0]
         
+        cursor.execute("SELECT HomeName FROM CustomerHome WHERE HomeID = ?", (row.HomeID,))
+        homename = cursor.fetchone()[0]
+        
         facename_list.append({
             'FaceID': row.FaceID,
             'FaceName': row.FaceName,
             'NumberOfImage': number_of_images, # Trả về số lượng ảnh đã thêm của người đó
+            'HomeName': homename,
         })
     
-    print(f"Trả về danh sách tên các khuôn mặt được thêm vào dữ liệu nhận diện")
+    print(f"Trả về danh sách tên các khuôn mặt được User {ten_tai_khoan_email_sdt} thêm vào dữ liệu nhận diện")
     cursor.close()
     conn.close()
     return json.dumps(facename_list), 200
