@@ -2988,9 +2988,11 @@ def count_new_ntf():
         cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
     
-    cursor.execute(f"""SELECT COUNT(*) FROM Notification 
-                    WHERE CameraID IN ({', '.join(map(str, camera_ids))}) OR CustomerID = {customerid}
-                """)
+    cursor.execute("""
+                        SELECT COUNT(*)
+                        FROM Notification
+                        WHERE CameraID IN ({camera_ids}) OR CustomerID = {customerid}
+                    """.format(camera_ids=', '.join(map(str, camera_ids)), customerid=customerid))
     all_ntf = cursor.fetchone()[0]
     cursor.execute(f"""SELECT COUNT(*) FROM Seen 
                         WHERE CustomerID = {customerid}
@@ -3058,7 +3060,7 @@ def camera_info():
 #---------------------------------------------------------------------------------------------------  
   
 @app.route('/api/notification/save', methods=['POST'])
-def get_lockrecord():
+def save_notification():
     conn = connect_to_database()
     cursor = conn.cursor()
     data = request.get_json()
@@ -3074,6 +3076,7 @@ def get_lockrecord():
     body = data.get('body')
     anh_base64 = data.get('base64')
     camera_id = data.get('camera_id')
+    formatted_time = data.get('formatted_time')
     
     print("notification_type:", notification_type, ' - ', type(notification_type))
     print("title:", title, ' - ', type(title))
@@ -3081,7 +3084,7 @@ def get_lockrecord():
     print("camera_id:", camera_id, ' - ', type(camera_id))
 
     # Lấy thông tin ngày, tạo tên ảnh
-    current_time = datetime.datetime.now()
+    current_time = datetime.strptime(formatted_time, "%d-%m-%Y %Hh%M'%S\"")
     time_string = current_time.strftime("%H%M%S_%d%m%Y")
     folder_path = f"Notification/{camera_id}/"
     img_path = folder_path + f"{time_string}.jpg" ##### <<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -3209,7 +3212,7 @@ def get_camera_data():
         return jsonify({'message': 'Sai key'}), 400
     
     # Truy vấn SQL để lấy dữ liệu từ bảng Camera
-    cursor.execute("SELECT CameraID, HomeID, CameraName, RTSP, LockpickingArea, ClimbingArea, RelatedCameraID FROM Camera")
+    cursor.execute("SELECT CameraID, HomeID, LockID, CameraName, RTSP, LockpickingArea, ClimbingArea, RelatedCameraID FROM Camera")
     
     # Trích xuất dữ liệu từ kết quả truy vấn
     camera_data = []
@@ -3218,6 +3221,7 @@ def get_camera_data():
         camera_data.append({
             'CameraID': row.CameraID,
             'HomeID': row.HomeID,
+            'LockID': row.LockID,
             'CameraName': row.CameraName,
             'RTSP': row.RTSP,
             'LockpickingArea': json.loads(row.LockpickingArea) if row.LockpickingArea else None,
@@ -3457,7 +3461,7 @@ def get_facename_in_home():
         homename = cursor.fetchone()[0]
         
         facename_list.append({
-            'FaceID': row.FaceID,
+            'FaceID': str(row.FaceID),
             'FaceName': row.FaceName,
             'NumberOfImage': number_of_images, # Trả về số lượng ảnh đã thêm của người đó
             'HomeName': homename,
@@ -3482,7 +3486,7 @@ def get_images_by_faceid():
         conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
-    faceid = data.get('faceid')
+    faceid = int(data.get('faceid'))
     print("faceid:", faceid, ' - ', type(faceid))
     
     cursor.execute("SELECT ImageID, Base64 FROM FaceRegData WHERE FaceID = ?", (faceid,))
@@ -3513,7 +3517,7 @@ def delete_face_img():
         conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
-    image_id = data.get('image_id')
+    image_id = int(data.get('image_id'))
     print("image_id:", image_id, ' - ', type(image_id))
 
     try:
@@ -3545,7 +3549,7 @@ def delete_face():
         conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
-    faceid = data.get('faceid')
+    faceid = int(data.get('faceid'))
     print("faceid:", faceid, ' - ', type(faceid))
 
     try:
