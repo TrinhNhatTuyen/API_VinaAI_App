@@ -3084,7 +3084,7 @@ def save_notification():
     print("camera_id:", camera_id, ' - ', type(camera_id))
 
     # Lấy thông tin ngày, tạo tên ảnh
-    current_time = datetime.strptime(formatted_time, "%d-%m-%Y %Hh%M'%S\"")
+    current_time = datetime.datetime.strptime(formatted_time, "%d-%m-%Y %Hh%M'%S\"")
     time_string = current_time.strftime("%H%M%S_%d%m%Y")
     folder_path = f"Notification/{camera_id}/"
     img_path = folder_path + f"{time_string}.jpg" ##### <<<<<<<<<<<<<<<<<<<<<<<<<<<
