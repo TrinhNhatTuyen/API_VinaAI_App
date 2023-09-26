@@ -292,7 +292,8 @@ def check_account():
         if cursor.fetchone():
             print("Cặp giá trị CustomerID và FCM đã tồn tại, k thực hiện thêm mới")
         else:
-            cursor.execute("INSERT INTO CustomerDevice (CustomerID, FCM) VALUES (?, ?)", (customerid, fcm))
+            current_datetime = datetime.datetime.now()
+            cursor.execute("INSERT INTO CustomerDevice (CustomerID, FCM, LoginTime) VALUES (?, ?, ?)", (customerid, fcm, current_datetime))
             print(f"Đã thêm FCM cho User {ten_tai_khoan_email_sdt}")
             conn.commit()
     except:
