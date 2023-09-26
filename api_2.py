@@ -2989,11 +2989,15 @@ def count_new_ntf():
         cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
     
-    cursor.execute("""
-                        SELECT COUNT(*)
-                        FROM Notification
-                        WHERE CameraID IN ({camera_ids}) OR CustomerID = {customerid}
-                    """.format(camera_ids=', '.join(map(str, camera_ids)), customerid=customerid))
+    if len(camera_ids)==0:
+        cursor.execute("SELECT COUNT(*) FROM Notification WHERE CustomerID = ?", (customerid,))
+    else:
+        cursor.execute("""
+                            SELECT COUNT(*)
+                            FROM Notification
+                            WHERE CameraID IN ({camera_ids}) OR CustomerID = {customerid}
+                        """.format(camera_ids=', '.join(map(str, camera_ids)), customerid=customerid))
+        
     all_ntf = cursor.fetchone()[0]
     cursor.execute(f"""SELECT COUNT(*) FROM Seen 
                         WHERE CustomerID = {customerid}
