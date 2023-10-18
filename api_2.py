@@ -2358,6 +2358,8 @@ def get_camera():
         return jsonify({'message': msg}), 404
     
     try:
+        type_list = ['Pose', 'Fire', 'Smoke']
+        placeholders = ", ".join(["?" for _ in type_list])
         for camera in camera_list:
             # Thêm trường HomeName cho mỗi Cam
             cursor.execute("SELECT HomeName FROM CustomerHome WHERE HomeID = ?", (camera['HomeID'], ))
@@ -2365,7 +2367,7 @@ def get_camera():
             
             # Thêm trường LastestAlert và Date cho mỗi Cam
             cam_id = camera['CameraID']
-            cursor.execute("SELECT TOP 1 * FROM Notification WHERE CameraID = ? and Type = ? ORDER BY Date DESC", (cam_id, 'Alert'))
+            cursor.execute(f"SELECT TOP 1 * FROM Notification WHERE CameraID = ? AND Type IN ({placeholders}) ORDER BY Date DESC", (cam_id, *type_list))
             row = cursor.fetchone()
             if row:
                 camera['ID_LastestAlert'] = row.ID_Notification
@@ -2413,15 +2415,115 @@ def alert_get_by_camera():
     notifications = cursor.fetchall()
     notification_list = []
     for notification in notifications:
-
-        notification_list.append({
-            'ID_Notification': notification.ID_Notification,
-            'Type': notification.Type,
-            'Title': notification.Title,
-            'Body': notification.Body,
-            'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+        if notification.Type in ["Pose", "Fire", "Smoke"]:
+            notification_list.append({
+                'ID_Notification': notification.ID_Notification,
+                'Type': notification.Type,
+                'Title': notification.Title,
+                'Body': notification.Body,
+                'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+                
+            })
+    
+    # Trả về trường "Seen" để biết thông báo đã xem chưa
+    for i in notification_list:
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        if cursor.fetchone():
+            i['Seen'] = 'True'
+        else:
+            i['Seen'] = 'False'
             
-        })
+    print(f"Trả về list các cảnh báo của Camera {camera_id}...")
+    cursor.close()
+    conn.close()
+    return json.dumps(notification_list), 200
+    # except:
+    #     msg = f"Lỗi! Không lấy được list các thông báo của User {username}"
+    #     print(msg)
+    #     return jsonify({'message': msg}), 404
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/notification/pose/get-by-camera', methods=['POST'])
+def pose_get_by_camera():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    # ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    # print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    camera_id = data.get('camera_id')
+    print("camera_id:", camera_id, ' - ', type(camera_id))
+    # try:
+    cursor.execute("SELECT * FROM Notification WHERE CameraID = ? ORDER BY Date DESC", camera_id)
+    notifications = cursor.fetchall()
+    notification_list = []
+    for notification in notifications:
+        if notification.Type in ["Pose"]:
+            notification_list.append({
+                'ID_Notification': notification.ID_Notification,
+                'Type': notification.Type,
+                'Title': notification.Title,
+                'Body': notification.Body,
+                'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+                
+            })
+    
+    # Trả về trường "Seen" để biết thông báo đã xem chưa
+    for i in notification_list:
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        if cursor.fetchone():
+            i['Seen'] = 'True'
+        else:
+            i['Seen'] = 'False'
+            
+    print(f"Trả về list các cảnh báo của Camera {camera_id}...")
+    cursor.close()
+    conn.close()
+    return json.dumps(notification_list), 200
+    # except:
+    #     msg = f"Lỗi! Không lấy được list các thông báo của User {username}"
+    #     print(msg)
+    #     return jsonify({'message': msg}), 404
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/notification/fire/get-by-camera', methods=['POST'])
+def fire_get_by_camera():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    # ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    # print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    camera_id = data.get('camera_id')
+    print("camera_id:", camera_id, ' - ', type(camera_id))
+    # try:
+    cursor.execute("SELECT * FROM Notification WHERE CameraID = ? ORDER BY Date DESC", camera_id)
+    notifications = cursor.fetchall()
+    notification_list = []
+    for notification in notifications:
+        if notification.Type in ["Fire", "Smoke"]:
+            notification_list.append({
+                'ID_Notification': notification.ID_Notification,
+                'Type': notification.Type,
+                'Title': notification.Title,
+                'Body': notification.Body,
+                'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+                
+            })
     
     # Trả về trường "Seen" để biết thông báo đã xem chưa
     for i in notification_list:
@@ -2504,15 +2606,16 @@ def alert_get_by_user():
     notifications = cursor.fetchall()
     notification_list = []
     for notification in notifications:
-        notification_list.append({
-            'CameraID': notification.CameraID,
-            'CameraName': notification.CameraName,
-            'ID_Notification': notification.ID_Notification,
-            'Type': notification.Type,
-            'Title': notification.Title,
-            'Body': notification.Body,
-            'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
-        })
+        if notification.Type in ["Pose", "Fire", "Smoke"]:
+            notification_list.append({
+                'CameraID': notification.CameraID,
+                'CameraName': notification.CameraName,
+                'ID_Notification': notification.ID_Notification,
+                'Type': notification.Type,
+                'Title': notification.Title,
+                'Body': notification.Body,
+                'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+            })
         
     # Trả về trường "Seen" để biết thông báo đã xem chưa
     for i in notification_list:
@@ -2526,7 +2629,184 @@ def alert_get_by_user():
     cursor.close()
     conn.close()
     return json.dumps(notification_list), 200
-   
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/notification/pose/get-by-user', methods=['POST'])
+def pose_get_by_user():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    # camera_id = data.get('camera_id')
+    # print("camera_id:", camera_id, ' - ', type(camera_id))
+
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
+    # Lấy ID nhà
+    cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ?", (customerid,))
+    home_ids = [row.HomeID for row in cursor.fetchall()]
+    # Lấy ID nhà được thêm quyền
+    cursor.execute("SELECT HomeID FROM HomeMember WHERE HomeMemberID = ?", (customerid,))
+    home_ids = home_ids + [row.HomeID for row in cursor.fetchall()]
+    
+    # Lặp qua từng HomeID và lấy danh sách CameraID từ đó
+    camera_ids = []
+    for home_id in home_ids:
+        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
+        camera_ids.extend([row.CameraID for row in cursor.fetchall()])
+    
+    # try:
+    params = ','.join('?' for _ in camera_ids)
+    # cursor.execute(f"SELECT * FROM Notification WHERE CameraID IN ({params}) ORDER BY Date DESC", camera_id)
+    cursor.execute(f"""
+                        SELECT n.ID_Notification, n.CameraID, n.Type, n.Title, n.Body, n.Date, n.ImagePath, c.CameraName                     
+                        FROM Notification n
+                        INNER JOIN Camera c ON n.CameraID = c.CameraID
+                        WHERE n.CameraID IN ({params})
+                        ORDER BY n.Date DESC
+                    """, camera_ids)
+    notifications = cursor.fetchall()
+    notification_list = []
+    for notification in notifications:
+        if notification.Type in ["Pose"]:
+            notification_list.append({
+                'CameraID': notification.CameraID,
+                'CameraName': notification.CameraName,
+                'ID_Notification': notification.ID_Notification,
+                'Type': notification.Type,
+                'Title': notification.Title,
+                'Body': notification.Body,
+                'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+            })
+        
+    # Trả về trường "Seen" để biết thông báo đã xem chưa
+    for i in notification_list:
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        if cursor.fetchone():
+            i['Seen'] = 'True'
+        else:
+            i['Seen'] = 'False'
+            
+    print(f"Trả về list các cảnh báo của User {ten_tai_khoan_email_sdt}...")
+    cursor.close()
+    conn.close()
+    return json.dumps(notification_list), 200
+
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/notification/fire/get-by-user', methods=['POST'])
+def fire_get_by_user():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    # camera_id = data.get('camera_id')
+    # print("camera_id:", camera_id, ' - ', type(camera_id))
+
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
+    # Lấy ID nhà
+    cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ?", (customerid,))
+    home_ids = [row.HomeID for row in cursor.fetchall()]
+    # Lấy ID nhà được thêm quyền
+    cursor.execute("SELECT HomeID FROM HomeMember WHERE HomeMemberID = ?", (customerid,))
+    home_ids = home_ids + [row.HomeID for row in cursor.fetchall()]
+    
+    # Lặp qua từng HomeID và lấy danh sách CameraID từ đó
+    camera_ids = []
+    for home_id in home_ids:
+        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
+        camera_ids.extend([row.CameraID for row in cursor.fetchall()])
+    
+    # try:
+    params = ','.join('?' for _ in camera_ids)
+    # cursor.execute(f"SELECT * FROM Notification WHERE CameraID IN ({params}) ORDER BY Date DESC", camera_id)
+    cursor.execute(f"""
+                        SELECT n.ID_Notification, n.CameraID, n.Type, n.Title, n.Body, n.Date, n.ImagePath, c.CameraName                     
+                        FROM Notification n
+                        INNER JOIN Camera c ON n.CameraID = c.CameraID
+                        WHERE n.CameraID IN ({params})
+                        ORDER BY n.Date DESC
+                    """, camera_ids)
+    notifications = cursor.fetchall()
+    notification_list = []
+    for notification in notifications:
+        if notification.Type in ["Fire", "Smoke"]:
+            notification_list.append({
+                'CameraID': notification.CameraID,
+                'CameraName': notification.CameraName,
+                'ID_Notification': notification.ID_Notification,
+                'Type': notification.Type,
+                'Title': notification.Title,
+                'Body': notification.Body,
+                'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+            })
+        
+    # Trả về trường "Seen" để biết thông báo đã xem chưa
+    for i in notification_list:
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        if cursor.fetchone():
+            i['Seen'] = 'True'
+        else:
+            i['Seen'] = 'False'
+            
+    print(f"Trả về list các cảnh báo của User {ten_tai_khoan_email_sdt}...")
+    cursor.close()
+    conn.close()
+    return json.dumps(notification_list), 200
+
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/notification/get-img', methods=['POST'])
