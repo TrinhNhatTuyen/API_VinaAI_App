@@ -788,37 +788,37 @@ def homeinfo():
     
     #---------------------------------------------------------------------------------------
     # LẤY NHÀ CỦA USER ĐƯỢC THÊM
-    try:
-        cursor.execute("SELECT HomeID, AdminID FROM HomeMember WHERE HomeMemberID = ?", customerid)
-        results = cursor.fetchall()
-        # Lấy thông tin căn hộ được thêm quyền
-        for homeid, admin_id in results:
-            cursor.execute("SELECT HomeName, HomeAddress, DistrictID FROM CustomerHome WHERE HomeID = ? AND CustomerID = ?", 
-                        (homeid, admin_id))
-            result = cursor.fetchone()
-            # Lấy các cam trong nhà đó
-            cursor.execute("SELECT CameraName, CameraID FROM Camera WHERE HomeID = ?", result.HomeID)
-            cam = cursor.fetchall()
-            # Chuyển danh sách các tuple thành danh sách các dictionary
-            home_info_list.append({
-                'HomeName': result.HomeName,
-                'HomeAddress': result.HomeAddress,
-                'DistrictID': result.DistrictID,
-                'HomeID': homeid,
-                'Owner': '0',
-                'CameraID': [i.CameraID for i in cam],
-                'CameraName': [i.CameraName for i in cam],
-            })
-        if len(results)==0:
-            print(f"Không có căn hộ nào User {ten_tai_khoan_email_sdt} được thêm quyền")
-        else:
-            print(f"Có {len(results)} căn hộ User {ten_tai_khoan_email_sdt} được thêm quyền")
-    except:
-        msg = f"Lỗi! Không lấy được thông tin các căn hộ User {ten_tai_khoan_email_sdt} được thêm vào"
-        print(msg)
-        cursor.close()
-        conn.close()
-        return jsonify({'message': msg}), 404
+    # try:
+    cursor.execute("SELECT HomeID, AdminID FROM HomeMember WHERE HomeMemberID = ?", customerid)
+    results = cursor.fetchall()
+    # Lấy thông tin căn hộ được thêm quyền
+    for homeid, admin_id in results:
+        cursor.execute("SELECT HomeName, HomeAddress, DistrictID FROM CustomerHome WHERE HomeID = ? AND CustomerID = ?", 
+                    (homeid, admin_id))
+        result = cursor.fetchone()
+        # Lấy các cam trong nhà đó
+        cursor.execute("SELECT CameraName, CameraID FROM Camera WHERE HomeID = ?", homeid)
+        cam = cursor.fetchall()
+        # Chuyển danh sách các tuple thành danh sách các dictionary
+        home_info_list.append({
+            'HomeName': result.HomeName,
+            'HomeAddress': result.HomeAddress,
+            'DistrictID': result.DistrictID,
+            'HomeID': homeid,
+            'Owner': '0',
+            'CameraID': [i.CameraID for i in cam],
+            'CameraName': [i.CameraName for i in cam],
+        })
+    if len(results)==0:
+        print(f"Không có căn hộ nào User {ten_tai_khoan_email_sdt} được thêm quyền")
+    else:
+        print(f"Có {len(results)} căn hộ User {ten_tai_khoan_email_sdt} được thêm quyền")
+    # except:
+    #     msg = f"Lỗi! Không lấy được thông tin các căn hộ User {ten_tai_khoan_email_sdt} được thêm vào"
+    #     print(msg)
+    #     cursor.close()
+    #     conn.close()
+    #     return jsonify({'message': msg}), 404
     
     # Chuyển danh sách thành định dạng JSON và trả về
     cursor.close()
