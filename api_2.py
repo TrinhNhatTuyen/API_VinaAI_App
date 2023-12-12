@@ -576,7 +576,52 @@ def get_avatar():
     cursor.close()
     conn.close()
     return Response(avatar_base64, mimetype='text/plain')
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/account/delete', methods=['POST'])
+def delete_account():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    # avatar_base64 = data.get('avatar_base64')
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
+        customerid = cursor.fetchone().CustomerID
+        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    print(username, ' - ', customerid)
+    cursor.execute("DELETE FROM Customer WHERE CustomerID = ?", (customerid,))
+    conn.commit()
+    msg = "Account deleted"
+    print(msg)
+    cursor.close()
+    conn.close()
+    return jsonify({'message': msg}), 201      
 ####################################################################################################
 @app.route('/api/ads/banner-img', methods=['GET'])
 def banner():
@@ -1351,14 +1396,20 @@ def addlock():
         results = cursor.fetchall()
         homeid = results[0][0]
     except:
-        # Nếu cho home member thêm khóa, lấy ra homeid của căn mà người này được thêm quyền
-        # cursor.execute("""SELECT HomeMember.HomeID
-        #                FROM HomeMember
-        #                INNER JOIN CustomerHome ON HomeMember.HomeID = CustomerHome.HomeID
-        #                WHERE CustomerHome.HomeName = ?
-        #                """, (homename,))
-        
         msg = 'Không lấy được HomeID từ customer_id và homename'
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 500
+    
+    #-------------------------------------------------
+    # Kiểm tra nếu LockID đúng
+    cursor.execute("SELECT * FROM ActiveLock WHERE LockID = ?", (lockid,))
+    right_lockid = cursor.fetchone()
+    if right_lockid:
+        pass
+    else:     
+        msg = 'Sai LockID'
         print(msg)
         cursor.close()
         conn.close()
@@ -1370,6 +1421,17 @@ def addlock():
     cursor.execute("SELECT * FROM Lock WHERE LockName = ? AND HomeID = ?", (lockname, homeid))
     if cursor.fetchall():
         msg = 'Trùng tên khóa'
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 500
+    
+    #-------------------------------------------------
+    
+    # Kiểm tra nếu LockID đã tồn tại
+    cursor.execute("SELECT * FROM Lock WHERE LockID = ? AND HomeID = ?", (lockid, homeid))
+    if cursor.fetchall():
+        msg = 'Khóa đã thêm trước đó'
         print(msg)
         cursor.close()
         conn.close()
@@ -2718,7 +2780,6 @@ def pose_get_by_user():
     conn.close()
     return json.dumps(notification_list), 200
 
-
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/notification/fire/get-by-user', methods=['POST'])
@@ -2807,6 +2868,53 @@ def fire_get_by_user():
     conn.close()
     return json.dumps(notification_list), 200
 
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/notification/delete', methods=['POST'])
+def delete_notification():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    id_notification = data.get('id_notification ')
+    print("id_notification :", id_notification , ' - ', type(id_notification ))
+
+    cursor.execute("SELECT ImagePath FROM Notification WHERE ID_Notification = ?", id_notification)
+    row = cursor.fetchone()
+
+    if row:
+        image_path = row.ImagePath
+        print(f"Đường dẫn của ảnh: {image_path}")
+
+        # Xóa ảnh
+        if os.path.exists(image_path):
+            os.remove(image_path)
+            print(f"Đã xóa ảnh có đường dẫn: {image_path}")
+        else:
+            print(f"Không tìm thấy ảnh có đường dẫn: {image_path}")
+
+        # Xóa hàng dữ liệu trong bảng Notification
+        cursor.execute("DELETE FROM Notification WHERE ID_Notification = ?", id_notification)
+        conn.commit()
+        
+        msg = f"Đã xóa hàng dữ liệu với ID_Notification {id_notification}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 200
+
+    else:
+        msg = f"Không tìm thấy thông báo với ID_Notification {id_notification}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 500
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/notification/get-img', methods=['POST'])
@@ -2987,7 +3095,7 @@ def send_to_user():
     conn.close()
     return jsonify({'message': msg}), 201
 #---------------------------------------------------------------------------------------------------
-# CHƯA TEST
+
 @app.route('/api/notification/get-all', methods=['POST'])
 def get_all_notifications():
     conn = connect_to_database()
@@ -3002,6 +3110,9 @@ def get_all_notifications():
 
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+    date_range = data.get('date_range')
+    print("date_range:", date_range, ' - ', type(date_range))
 
 
     # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
@@ -3062,16 +3173,34 @@ def get_all_notifications():
                     """)
     notifications = cursor.fetchall()
     notification_list = []
+    if date_range is not None:
+        date_parts = date_range.split(" - ")
+        start_date = datetime.datetime.strptime(date_parts[0], "%Y-%m-%d %H:%M:%S.%f")
+        end_date = datetime.datetime.strptime(date_parts[1], "%Y-%m-%d %H:%M:%S.%f")
+        
     for notification in notifications:
-        notification_list.append({
-            'CameraID': notification.CameraID,
-            'CameraName': notification.CameraName,
-            'ID_Notification': notification.ID_Notification,
-            'Type': notification.Type,
-            'Title': notification.Title,
-            'Body': notification.Body,
-            'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
-        })
+        if date_range is not None:
+            date = notification.Date
+            if start_date <= date <= (end_date+datetime.timedelta(days=1)):
+                notification_list.append({
+                    'CameraID': notification.CameraID,
+                    'CameraName': notification.CameraName,
+                    'ID_Notification': notification.ID_Notification,
+                    'Type': notification.Type,
+                    'Title': notification.Title,
+                    'Body': notification.Body,
+                    'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+                })
+        else:
+            notification_list.append({
+                'CameraID': notification.CameraID,
+                'CameraName': notification.CameraName,
+                'ID_Notification': notification.ID_Notification,
+                'Type': notification.Type,
+                'Title': notification.Title,
+                'Body': notification.Body,
+                'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+            })
         
     for i in notification_list:
         # Trả về trường "Seen" để biết thông báo đã xem chưa
@@ -3497,7 +3626,7 @@ def get_camera_data():
         return jsonify({'message': 'Sai key'}), 400
     
     # Truy vấn SQL để lấy dữ liệu từ bảng Camera
-    cursor.execute("SELECT CameraID, HomeID, LockID, CameraName, RTSP, LockpickingArea, ClimbingArea, RelatedCameraID FROM Camera")
+    cursor.execute("SELECT CameraID, HomeID, LockID, CameraName, RTSP, LockpickingArea, ClimbingArea, BikeArea, RelatedCameraID FROM Camera")
     
     # Trích xuất dữ liệu từ kết quả truy vấn
     camera_data = []
@@ -3511,6 +3640,7 @@ def get_camera_data():
             'RTSP': row.RTSP,
             'LockpickingArea': json.loads(row.LockpickingArea) if row.LockpickingArea else None,
             'ClimbingArea': json.loads(row.ClimbingArea) if row.ClimbingArea else None,
+            'BikeArea': json.loads(row.BikeArea) if row.BikeArea else None,
             'RelatedCameraID': row.RelatedCameraID,
         })
     print(f"Trả về thông tin tất cả Camera")
@@ -3726,31 +3856,32 @@ def get_facename_in_home():
         conn.close()
         return jsonify({'message': msg}), 404
     
-    # Lấy ra danh sách những khuôn mặt được thêm vào dữ liệu nhận diện của các căn trong "homeid_list"
-    cursor.execute("""
-                    SELECT DISTINCT FaceID, FaceName, HomeID
-                    FROM FaceRegData 
-                    WHERE HomeID IN ({}) 
-                    ORDER BY HomeID
-                   """.format(', '.join(map(str, homeid_list)))
-                   )
-    rows = cursor.fetchall()
-    
     facename_list = []
-    for row in rows:
-        # Tính số lượng ảnh của mỗi người đã thêm vào dữ liệu nhận diện
-        cursor.execute("SELECT COUNT(*) FROM FaceRegData WHERE FaceID = ?", (row.FaceID,))
-        number_of_images = cursor.fetchone()[0]
+    if len(homeid_list)>0:
+        # Lấy ra danh sách những khuôn mặt được thêm vào dữ liệu nhận diện của các căn trong "homeid_list"
+        cursor.execute("""
+                        SELECT DISTINCT FaceID, FaceName, HomeID
+                        FROM FaceRegData 
+                        WHERE HomeID IN ({}) 
+                        ORDER BY HomeID
+                    """.format(', '.join(map(str, homeid_list)))
+                    )
+        rows = cursor.fetchall()
         
-        cursor.execute("SELECT HomeName FROM CustomerHome WHERE HomeID = ?", (row.HomeID,))
-        homename = cursor.fetchone()[0]
-        
-        facename_list.append({
-            'FaceID': str(row.FaceID),
-            'FaceName': row.FaceName,
-            'NumberOfImage': number_of_images, # Trả về số lượng ảnh đã thêm của người đó
-            'HomeName': homename,
-        })
+        for row in rows:
+            # Tính số lượng ảnh của mỗi người đã thêm vào dữ liệu nhận diện
+            cursor.execute("SELECT COUNT(*) FROM FaceRegData WHERE FaceID = ?", (row.FaceID,))
+            number_of_images = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT HomeName FROM CustomerHome WHERE HomeID = ?", (row.HomeID,))
+            homename = cursor.fetchone()[0]
+            
+            facename_list.append({
+                'FaceID': str(row.FaceID),
+                'FaceName': row.FaceName,
+                'NumberOfImage': number_of_images, # Trả về số lượng ảnh đã thêm của người đó
+                'HomeName': homename,
+            })
     
     print(f"Trả về danh sách tên các khuôn mặt được User {ten_tai_khoan_email_sdt} thêm vào dữ liệu nhận diện")
     cursor.close()
