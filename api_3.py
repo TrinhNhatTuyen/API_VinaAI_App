@@ -1,6 +1,7 @@
 
 from flask import Flask, request, jsonify, Response
-import socket, pyodbc, random, time, os, cv2, base64, hashlib, requests, datetime, json, math
+import socket, pyodbc, random, time, os, cv2, base64, hashlib, requests, datetime, json, math, hashlib, argon2
+from argon2 import PasswordHasher
 from matplotlib import pyplot
 import numpy as np
 import pandas as pd
@@ -69,7 +70,38 @@ def padding(imgface,target_size=(224,224)):
         print("err padd")
         return imgface
 
+def argon2_encode(input_password):
+    """
+    Hàm mã hóa mật khẩu sử dụng thuật toán Argon2.
 
+    Parameters:
+    - input_password: Mật khẩu cần mã hóa.
+
+    Returns:
+    - Chuỗi Argon2 hash.
+    """
+    ph = PasswordHasher()
+    hashed_password = ph.hash(input_password)
+    return hashed_password
+
+def argon2_compare(input_password, hashed_password):
+    """
+    Hàm kiểm tra sự tương đồng giữa một mật khẩu và một chuỗi Argon2 hash.
+
+    Parameters:
+    - input_password: Mật khẩu cần kiểm tra.
+    - hashed_password: Chuỗi Argon2 hash cần so sánh.
+
+    Returns:
+    - True nếu input_password và hashed_password tương đồng, False nếu không.
+    """
+    ph = PasswordHasher()
+    try:
+        ph.verify(hashed_password, input_password)
+        return True
+    except argon2.exceptions.VerifyMismatchError:
+        return False
+    
 #---------------------------------------------------------------------------------------------------
 # Lấy địa chỉ IP của máy
 def get_ip_address():
@@ -113,6 +145,9 @@ def them_tai_khoan():
     fullname = data.get('fullname')
     #address = data.get('address')
     #district_id = data.get('district_id')
+    
+    # Mã hóa mật khẩu
+    password = argon2_encode(password)
 
     # Kiểm tra xem tài khoản, email hoặc số điện thoại đã tồn tại hay chưa
     query_check = f"SELECT Username, Email, Mobile FROM Customer WHERE Username = ? OR Email = ? OR Mobile = ?"
@@ -207,6 +242,9 @@ def check_account():
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     print("password:", password, ' - ', type(password))
     
+    # Mã hóa mật khẩu
+    password = argon2_encode(password)
+    
     # Kiểm tra nếu "ten_tai_khoan_email_sdt" có chứa ký tự "@"
     if "@" in ten_tai_khoan_email_sdt:
         # Kiểm tra có tồn tại Email này không
@@ -221,10 +259,10 @@ def check_account():
         
         # Kiểm tra trong cột "Email" và "Password"
         print("Đăng nhập bằng Email: ", ten_tai_khoan_email_sdt)
-        query_check = "SELECT * FROM Customer WHERE Email = ? AND Password = ?"
-        cursor.execute(query_check, (ten_tai_khoan_email_sdt, password))
+        query_check = "SELECT * FROM Customer WHERE Email = ?"
+        cursor.execute(query_check, (ten_tai_khoan_email_sdt))
         result = cursor.fetchone()
-        if not result:
+        if argon2_compare(password, result.Password):
             msg = "Wrong Password"
             print(msg)
             cursor.close()
@@ -245,10 +283,10 @@ def check_account():
         
         # Kiểm tra trong cột "Mobile" và "Password"
         print("Đăng nhập bằng SDT: ", ten_tai_khoan_email_sdt)
-        query_check = "SELECT * FROM Customer WHERE Mobile = ? AND Password = ?"
-        cursor.execute(query_check, (ten_tai_khoan_email_sdt, password))
+        query_check = "SELECT * FROM Customer WHERE Mobile = ?"
+        cursor.execute(query_check, (ten_tai_khoan_email_sdt))
         result = cursor.fetchone()
-        if not result:
+        if argon2_compare(password, result.Password):
             msg = "Wrong Password"
             print(msg)
             cursor.close()
@@ -268,10 +306,10 @@ def check_account():
         
         # Kiểm tra trong cột "Username" và "Password"
         print("Đăng nhập bằng Username: ", ten_tai_khoan_email_sdt)
-        query_check = "SELECT * FROM Customer WHERE Username = ? AND Password = ?"
-        cursor.execute(query_check, (ten_tai_khoan_email_sdt, password))
+        query_check = "SELECT * FROM Customer WHERE Username = ?"
+        cursor.execute(query_check, (ten_tai_khoan_email_sdt))
         result = cursor.fetchone()
-        if not result:
+        if argon2_compare(password, result.Password):
             msg = "Wrong Password"
             print(msg)
             cursor.close()
@@ -465,14 +503,14 @@ def capnhat_matkhau():
         current_pw = rows[0].Password  # Giả sử cột Password được lấy là current_pw
 
         # Kiểm tra new_pw có trùng với current_pw hay không
-        if new_pw == current_pw:
+        if argon2_compare(new_pw, current_pw):
             msg = 'Vừa nhập mật khẩu cũ'
             print(msg)
             return jsonify({'message': msg}), 400
 
         # Cập nhật mật khẩu mới
         update_query = f"UPDATE Customer SET Password = ? WHERE Email = ?"
-        cursor.execute(update_query, (new_pw, email))
+        cursor.execute(update_query, (argon2_encode(new_pw), email))
         conn.commit()
         msg = 'Cập nhật mật khẩu thành công'
         print(msg)
