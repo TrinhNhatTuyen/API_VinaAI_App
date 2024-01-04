@@ -5,6 +5,12 @@ from argon2 import PasswordHasher
 from matplotlib import pyplot
 import numpy as np
 import pandas as pd
+
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding
+from base64 import b64encode, b64decode
+
 app = Flask(__name__)
 value = None
 random_banner = ''
@@ -44,7 +50,7 @@ def base64_to_array(anh_base64):
         return img_arr
 
 
-def padding(imgface,target_size=(224,224)):
+def padding_face(imgface,target_size=(224,224)):
     try:
         tile= target_size[0]/(imgface.shape[0]+1)
         he=math.floor(tile*imgface.shape[0])
@@ -101,7 +107,31 @@ def argon2_compare(input_password, hashed_password):
         return True
     except argon2.exceptions.VerifyMismatchError:
         return False
-    
+
+def aes_encrypt(encrypt_text, key=b'x?C^pz62}bDM&)<duM9]:/kWze/j13J4'):
+    # Thêm padding vào dữ liệu để đảm bảo độ dài là bội số của 16 bytes
+    padder = padding.PKCS7(128).padder()
+    padded_data = padder.update(encrypt_text.encode()) + padder.finalize()
+
+    # Mã hóa dữ liệu đã được padding
+    cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())
+    encryptor = cipher.encryptor()
+    ciphertext = encryptor.update(padded_data) + encryptor.finalize()
+
+    return b64encode(ciphertext).decode()
+
+def aes_decrypt(decrypt_text, key=b'x?C^pz62}bDM&)<duM9]:/kWze/j13J4'):
+    # Giải mã dữ liệu
+    cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())
+    decryptor = cipher.decryptor()
+    padded_data = decryptor.update(b64decode(decrypt_text)) + decryptor.finalize()
+
+    # Bỏ padding
+    unpadder = padding.PKCS7(128).unpadder()
+    plaintext = unpadder.update(padded_data) + unpadder.finalize()
+
+    return plaintext.decode()
+ 
 #---------------------------------------------------------------------------------------------------
 # Lấy địa chỉ IP của máy
 def get_ip_address():
@@ -1071,11 +1101,11 @@ def get_camera_in_home():
     print("homeid:", homeid, ' - ', type(homeid))
 
     home_info_list = []
-    cursor.execute("SELECT CameraID, CameraName, HomeID, LockID, CamUsername, RTSP FROM Camera WHERE HomeID = ?", homeid)
+    cursor.execute("SELECT CameraID, CameraName, HomeID, LockID, CamUsername, RTSP_encode FROM Camera WHERE HomeID = ?", homeid)
     results = cursor.fetchall()
     for i in results:
         
-        cam_img = i.CameraName
+        cam_img = str(i.CameraID)
         cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
         img = cv2.imread(cam_img_path)
         _, image_data = cv2.imencode('.jpg', img)
@@ -1094,7 +1124,7 @@ def get_camera_in_home():
                 'LockID': None,
                 'LockName': None,
                 'CamUsername': i.CamUsername,
-                'RTSP': i.RTSP,
+                'RTSP': aes_decrypt(i.RTSP_encode),
                 'Hinh': base64_image,
             })
             
@@ -1109,7 +1139,7 @@ def get_camera_in_home():
                 'LockID': i.LockID,
                 'LockName': lock.LockName,
                 'CamUsername': i.CamUsername,
-                'RTSP': i.RTSP,
+                'RTSP': aes_decrypt(i.RTSP_encode),
                 'Hinh': base64_image,
             })
             
@@ -2318,7 +2348,7 @@ def delete_passcode():
 #     print("rtsp:", rtsp, ' - ', type(rtsp))
 
 #     # Lưu vào bảng Camera
-#     cursor.execute("INSERT INTO Camera (CameraName, HomeID, CameraUsername, CameraPass, RTSP) VALUES (?, ?, ?, ?, ?)",
+#     cursor.execute("INSERT INTO Camera (CameraName, HomeID, CameraUsername, CameraPass, RTSP_encode) VALUES (?, ?, ?, ?, ?)",
 #                    (camera_name, homeid, cam_username, cam_pass, rtsp))
 #     conn.commit()
 
@@ -2390,72 +2420,72 @@ def get_camera():
     
     # Lấy danh sách camera của User
     camera_list = []
-    try:
-        # Lấy cam của User
-        cursor.execute(f"""
-                            SELECT cam.LockID, cam.CameraID, cam.HomeID
-                            FROM Camera cam
-                            JOIN CustomerHome ch ON cam.HomeID = ch.HomeID
-                            WHERE ch.CustomerID = '{customer_id}'
-                        """)
-        result_1 = cursor.fetchall()
+    # try:
+    # Lấy cam của User
+    cursor.execute(f"""
+                        SELECT cam.LockID, cam.CameraID, cam.HomeID
+                        FROM Camera cam
+                        JOIN CustomerHome ch ON cam.HomeID = ch.HomeID
+                        WHERE ch.CustomerID = '{customer_id}'
+                    """)
+    result_1 = cursor.fetchall()
+    
+    # Lấy cam được thêm quyền
+    cursor.execute(f"""
+                        SELECT cam.LockID, cam.CameraID, cam.HomeID
+                        FROM Camera cam
+                        JOIN HomeMember hm ON cam.HomeID = hm.HomeID
+                        WHERE hm.HomeMemberID = {customer_id}
+                    """)
+    result_2 = cursor.fetchall()
+    
+    results = result_1 + result_2
+    
+    for i in results:
+        cursor.execute("SELECT CameraName, RTSP_encode FROM Camera WHERE CameraID = ?", i.CameraID)
+        cam = cursor.fetchone()
+        cam_img = str(i.CameraID)
+        cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
+        img = cv2.imread(cam_img_path)
+        _, image_data = cv2.imencode('.jpg', img)
         
-        # Lấy cam được thêm quyền
-        cursor.execute(f"""
-                            SELECT cam.LockID, cam.CameraID, cam.HomeID
-                            FROM Camera cam
-                            JOIN HomeMember hm ON cam.HomeID = hm.HomeID
-                            WHERE hm.HomeMemberID = {customer_id}
-                        """)
-        result_2 = cursor.fetchall()
+        # Chuyển đổi dữ liệu ảnh thành chuỗi base64
+        base64_image = base64.b64encode(image_data).decode("utf-8")
+        #--------------------------------------------------------------------------
         
-        results = result_1 + result_2
-        
-        for i in results:
-            cursor.execute("SELECT CameraName, RTSP FROM Camera WHERE CameraID = ?", i.CameraID)
-            cam = cursor.fetchone()
-            cam_img = cam.CameraName
-            cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
-            img = cv2.imread(cam_img_path)
-            _, image_data = cv2.imencode('.jpg', img)
+        # Nếu cam không có khóa
+        if i.LockID==None:
+            camera_list.append({
+                'HomeID': i.HomeID,
+                'CameraID': i.CameraID,
+                'LockID': None,
+                'LockName': None,
+                'CameraName': cam.CameraName,
+                'RTSP': aes_decrypt(cam.RTSP_encode),
+                'Hinh': base64_image,
+            })
             
-            # Chuyển đổi dữ liệu ảnh thành chuỗi base64
-            base64_image = base64.b64encode(image_data).decode("utf-8")
-            #--------------------------------------------------------------------------
-            
-            # Nếu cam không có khóa
-            if i.LockID==None:
-                camera_list.append({
-                    'HomeID': i.HomeID,
-                    'CameraID': i.CameraID,
-                    'LockID': None,
-                    'LockName': None,
-                    'CameraName': cam.CameraName,
-                    'RTSP': cam.RTSP,
-                    'Hinh': base64_image,
-                })
-                
-            # Nếu cam có khóa
-            else:
-                cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", i.LockID)
-                lock = cursor.fetchone()   
-                #----------------------------------------------------------------------        
-                camera_list.append({
-                    'HomeID': i.HomeID,
-                    'CameraID': i.CameraID,
-                    'LockID': i.LockID,
-                    'LockName': lock.LockName,
-                    'CameraName': cam.CameraName,
-                    'RTSP': cam.RTSP,
-                    'Hinh': base64_image,
-                })
+        # Nếu cam có khóa
+        else:
+            cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", i.LockID)
+            lock = cursor.fetchone()   
+            #----------------------------------------------------------------------        
+            camera_list.append({
+                'HomeID': i.HomeID,
+                'CameraID': i.CameraID,
+                'LockID': i.LockID,
+                'LockName': lock.LockName,
+                'CameraName': cam.CameraName,
+                'RTSP': aes_decrypt(cam.RTSP_encode),
+                'Hinh': base64_image,
+            })
 
-    except Exception as e:
-        msg = f"Lỗi! Không lấy được danh sách camera của user {ten_tai_khoan_email_sdt}"
-        print(msg)
-        cursor.close()
-        conn.close()
-        return jsonify({'message': msg}), 404
+    # except Exception as e:
+    #     msg = f"Lỗi! Không lấy được danh sách camera của user {ten_tai_khoan_email_sdt}"
+    #     print(msg)
+    #     cursor.close()
+    #     conn.close()
+    #     return jsonify({'message': msg}), 404
     
     try:
         type_list = ['Pose', 'Fire', 'Smoke']
@@ -3473,13 +3503,15 @@ def get_camera_id():
     
     rtsp = data.get('rtsp')
     print("rtsp:", rtsp, ' - ', type(rtsp))
-    cursor.execute("SELECT CameraID FROM Camera WHERE RTSP = ?", (rtsp,))
-    camera_id = cursor.fetchone().CameraID
-    msg = f"Trả về id camera có rtsp là {rtsp}"
-    print(msg)
-    cursor.close()
-    conn.close()
-    return jsonify({'message': camera_id}), 200
+    cursor.execute("SELECT CameraID, RTSP_encode FROM Camera")
+    results = cursor.fetchall()
+    for result in results:
+        if rtsp == aes_decrypt(key=key, decrypt_text=result.RTSP_encode):     
+            msg = f"Trả về id camera có rtsp là {rtsp}"
+            print(msg)
+            cursor.close()
+            conn.close()
+            return jsonify({'message': result.CameraID}), 200
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/camera/info', methods=['POST'])
@@ -3499,7 +3531,7 @@ def camera_info():
     camera_list = []
     for i in cam:
         camera_list.append({
-            'RTSP': i.RTSP,
+            'RTSP': i.RTSP_encode,
             'CamID': i.CameraID,
             'HomeID': i.HomeID,
             'LockID': i.LockID,
@@ -3664,7 +3696,7 @@ def get_camera_data():
         return jsonify({'message': 'Sai key'}), 400
     
     # Truy vấn SQL để lấy dữ liệu từ bảng Camera
-    cursor.execute("SELECT CameraID, HomeID, LockID, CameraName, RTSP, LockpickingArea, ClimbingArea, BikeArea, RelatedCameraID FROM Camera")
+    cursor.execute("SELECT CameraID, HomeID, LockID, CameraName, RTSP_encode, LockpickingArea, ClimbingArea, BikeArea, RelatedCameraID FROM Camera")
     
     # Trích xuất dữ liệu từ kết quả truy vấn
     camera_data = []
@@ -3675,7 +3707,7 @@ def get_camera_data():
             'HomeID': row.HomeID,
             'LockID': row.LockID,
             'CameraName': row.CameraName,
-            'RTSP': row.RTSP,
+            'RTSP': row.RTSP_encode,
             'LockpickingArea': json.loads(row.LockpickingArea) if row.LockpickingArea else None,
             'ClimbingArea': json.loads(row.ClimbingArea) if row.ClimbingArea else None,
             'BikeArea': json.loads(row.BikeArea) if row.BikeArea else None,
@@ -3805,7 +3837,7 @@ def faceid_upload_image():
     crop_img = base_img[int(top * aspect_ratio_y):int(bottom * aspect_ratio_y),
                         int(left * aspect_ratio_x):int(right * aspect_ratio_x)]
     crop_img = cv2.cvtColor(crop_img, cv2.COLOR_BGR2RGB)
-    crop_img = padding(crop_img, target_size=(224, 224))
+    crop_img = padding_face(crop_img, target_size=(224, 224))
     
     crop_path = 'hinhtrain/lastest_upload.jpg'
     if os.path.exists(crop_path):
