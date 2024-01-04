@@ -131,7 +131,41 @@ def aes_decrypt(decrypt_text, key=b'x?C^pz62}bDM&)<duM9]:/kWze/j13J4'):
     plaintext = unpadder.update(padded_data) + unpadder.finalize()
 
     return plaintext.decode()
- 
+
+def save_thumbnail(rtsp_url, camera_id, thumbnail_path='cam_img'):
+    # Mở kết nối RTSP
+    cap = cv2.VideoCapture(rtsp_url)
+
+    # Kiểm tra xem kết nối có thành công không
+    if not cap.isOpened():
+        print("Không thể kết nối đến luồng RTSP.")
+        return
+
+    # Bỏ qua 4 khung hình đầu tiên
+    for _ in range(4):
+        ret, _ = cap.read()
+        if not ret:
+            print("Không thể đọc khung hình từ luồng RTSP.")
+            cap.release()
+            return
+
+    # Đọc khung hình thứ 5
+    ret, frame = cap.read()
+
+    # Kiểm tra xem có đọc được khung hình không
+    if not ret:
+        print("Không thể đọc khung hình từ luồng RTSP.")
+        cap.release()
+        return
+
+    # Lưu khung hình thứ 5
+    thumbnail_file_path = os.path.join(thumbnail_path, f"{camera_id}.jpg")
+    cv2.imwrite(thumbnail_file_path, frame)
+
+    print(f"Khung hình thứ 5 đã được lưu tại: {thumbnail_file_path}")
+
+    # Giải phóng tài nguyên
+    cap.release()
 #---------------------------------------------------------------------------------------------------
 # Lấy địa chỉ IP của máy
 def get_ip_address():
@@ -1107,7 +1141,10 @@ def get_camera_in_home():
         
         cam_img = str(i.CameraID)
         cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
-        img = cv2.imread(cam_img_path)
+        try:
+            img = cv2.imread(cam_img_path)
+        except:
+            img = cv2.imread('cam_img/default.jpg')
         _, image_data = cv2.imencode('.jpg', img)
         
         # Chuyển đổi dữ liệu ảnh thành chuỗi base64
@@ -2327,30 +2364,64 @@ def delete_passcode():
 
 ####################################################################################################
 
-# @app.route('/api/camera/add', methods=['POST'])
-# def add_camera():
-#     data = request.get_json()
-#     key = data.get('key')
-#     if key not in api_keys:
-#         print('Sai key')
-#         return jsonify({'message': 'Sai key'}), 400
+@app.route('/api/camera/add', methods=['POST'])
+def add_camera():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
     
-#     camera_name = data.get('camera_name')
-#     homeid = data.get('homeid')
-#     cam_username = data.get('cam_username')
-#     cam_pass = data.get('cam_pass')
-#     rtsp = data.get('rtsp')
+    camera_name = data.get('camera_name')
+    homeid = data.get('homeid')
+    cam_username = data.get('cam_username')
+    cam_pass = data.get('cam_pass')
+    ddns = data.get('ddns')
+    port = data.get('port')
     
-#     print("camera_name:", camera_name, ' - ', type(camera_name))
-#     print("homeid:", homeid, ' - ', type(homeid))
-#     print("cam_username:", cam_username, ' - ', type(cam_username))
-#     print("cam_pass:", cam_pass, ' - ', type(cam_pass))
-#     print("rtsp:", rtsp, ' - ', type(rtsp))
+    print("camera_name:", camera_name, ' - ', type(camera_name))
+    print("homeid:", homeid, ' - ', type(homeid))
+    print("cam_username:", cam_username, ' - ', type(cam_username))
+    print("cam_pass:", cam_pass, ' - ', type(cam_pass))
+    print("ddns:", ddns, ' - ', type(ddns))
 
-#     # Lưu vào bảng Camera
-#     cursor.execute("INSERT INTO Camera (CameraName, HomeID, CameraUsername, CameraPass, RTSP_encode) VALUES (?, ?, ?, ?, ?)",
-#                    (camera_name, homeid, cam_username, cam_pass, rtsp))
-#     conn.commit()
+    rtsp = aes_encrypt(f'rtsp://{cam_username}:{cam_pass}@{ddns}:{port}/cam/realmonitor?channel=1&subtype=0&unicast=true')
+    
+    # Lưu vào bảng Camera
+    cursor.execute("INSERT INTO Camera (CameraName, HomeID, CameraUsername, CameraPass, RTSP_encode) VALUES (?, ?, ?, ?, ?)",
+                   (camera_name, homeid, cam_username, cam_pass, rtsp))
+    conn.commit()
+
+# #---------------------------------------------------------------------------------------------------
+
+@app.route('/api/camera/edit', methods=['POST'])
+def edit_camera():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    camera_id = data.get('camera_id')
+    camera_name = data.get('camera_name')
+    homeid = data.get('homeid')
+    cam_username = data.get('cam_username')
+    cam_pass = data.get('cam_pass')
+    ddns = data.get('ddns')
+    port = data.get('port')
+    
+    print("camera_name:", camera_name, ' - ', type(camera_name))
+    print("homeid:", homeid, ' - ', type(homeid))
+    print("cam_username:", cam_username, ' - ', type(cam_username))
+    print("cam_pass:", cam_pass, ' - ', type(cam_pass))
+    print("ddns:", ddns, ' - ', type(ddns))
+
+    rtsp = aes_encrypt(f'rtsp://{cam_username}:{cam_pass}@{ddns}:{port}/cam/realmonitor?channel=1&subtype=0&unicast=true')
+    
+    # Lưu vào bảng Camera
+    cursor.execute("UPDATE Camera SET CameraName=?, HomeID=?, CameraUsername=?, CameraPass=?, RTSP_encode=? WHERE CameraID=?",
+                    (camera_name, homeid, cam_username, cam_pass, rtsp, camera_id))
+    conn.commit()
 
 # #---------------------------------------------------------------------------------------------------
 
@@ -2420,72 +2491,80 @@ def get_camera():
     
     # Lấy danh sách camera của User
     camera_list = []
-    # try:
-    # Lấy cam của User
-    cursor.execute(f"""
-                        SELECT cam.LockID, cam.CameraID, cam.HomeID
-                        FROM Camera cam
-                        JOIN CustomerHome ch ON cam.HomeID = ch.HomeID
-                        WHERE ch.CustomerID = '{customer_id}'
-                    """)
-    result_1 = cursor.fetchall()
-    
-    # Lấy cam được thêm quyền
-    cursor.execute(f"""
-                        SELECT cam.LockID, cam.CameraID, cam.HomeID
-                        FROM Camera cam
-                        JOIN HomeMember hm ON cam.HomeID = hm.HomeID
-                        WHERE hm.HomeMemberID = {customer_id}
-                    """)
-    result_2 = cursor.fetchall()
-    
-    results = result_1 + result_2
-    
-    for i in results:
-        cursor.execute("SELECT CameraName, RTSP_encode FROM Camera WHERE CameraID = ?", i.CameraID)
-        cam = cursor.fetchone()
-        cam_img = str(i.CameraID)
-        cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
-        img = cv2.imread(cam_img_path)
-        _, image_data = cv2.imencode('.jpg', img)
+    try:
+        # Lấy cam của User
+        cursor.execute(f"""
+                            SELECT cam.LockID, cam.CameraID, cam.HomeID
+                            FROM Camera cam
+                            JOIN CustomerHome ch ON cam.HomeID = ch.HomeID
+                            WHERE ch.CustomerID = '{customer_id}'
+                        """)
+        result_1 = cursor.fetchall()
         
-        # Chuyển đổi dữ liệu ảnh thành chuỗi base64
-        base64_image = base64.b64encode(image_data).decode("utf-8")
-        #--------------------------------------------------------------------------
+        # Lấy cam được thêm quyền
+        cursor.execute(f"""
+                            SELECT cam.LockID, cam.CameraID, cam.HomeID
+                            FROM Camera cam
+                            JOIN HomeMember hm ON cam.HomeID = hm.HomeID
+                            WHERE hm.HomeMemberID = {customer_id}
+                        """)
+        result_2 = cursor.fetchall()
         
-        # Nếu cam không có khóa
-        if i.LockID==None:
-            camera_list.append({
-                'HomeID': i.HomeID,
-                'CameraID': i.CameraID,
-                'LockID': None,
-                'LockName': None,
-                'CameraName': cam.CameraName,
-                'RTSP': aes_decrypt(cam.RTSP_encode),
-                'Hinh': base64_image,
-            })
+        results = result_1 + result_2
+        
+        for i in results:
+                
+            cursor.execute("SELECT CameraName, RTSP_encode FROM Camera WHERE CameraID = ?", i.CameraID)
+            cam = cursor.fetchone()
+            cam_img = str(i.CameraID)
+            cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
+            try:
+                img = cv2.imread(cam_img_path)
+            except:
+                img = cv2.imread('cam_img/default.jpg')
+            _, image_data = cv2.imencode('.jpg', img)
             
-        # Nếu cam có khóa
-        else:
-            cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", i.LockID)
-            lock = cursor.fetchone()   
-            #----------------------------------------------------------------------        
-            camera_list.append({
-                'HomeID': i.HomeID,
-                'CameraID': i.CameraID,
-                'LockID': i.LockID,
-                'LockName': lock.LockName,
-                'CameraName': cam.CameraName,
-                'RTSP': aes_decrypt(cam.RTSP_encode),
-                'Hinh': base64_image,
-            })
+            # Chuyển đổi dữ liệu ảnh thành chuỗi base64
+            base64_image = base64.b64encode(image_data).decode("utf-8")
+            #--------------------------------------------------------------------------
+            
+            # Nếu cam không có khóa
+            if i.LockID==None:
+                camera_list.append({
+                    'HomeID': i.HomeID,
+                    'CameraID': i.CameraID,
+                    'LockID': None,
+                    'LockName': None,
+                    'CameraName': cam.CameraName,
+                    'RTSP': aes_decrypt(cam.RTSP_encode),
+                    'Hinh': base64_image,
+                })
+                
+            # Nếu cam có khóa
+            else:
+                cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", i.LockID)
+                lock = cursor.fetchone()
+                #----------------------------------------------------------------------        
+                camera_list.append({
+                    'HomeID': i.HomeID,
+                    'CameraID': i.CameraID,
+                    'LockID': i.LockID,
+                    'LockName': lock.LockName,
+                    'CameraName': cam.CameraName,
+                    'RTSP': aes_decrypt(cam.RTSP_encode),
+                    'Hinh': base64_image,
+                })
 
-    # except Exception as e:
-    #     msg = f"Lỗi! Không lấy được danh sách camera của user {ten_tai_khoan_email_sdt}"
-    #     print(msg)
-    #     cursor.close()
-    #     conn.close()
-    #     return jsonify({'message': msg}), 404
+    except Exception as e:
+        msg = f"Lỗi! Không lấy được danh sách camera của user {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
+    # for camera in camera_list:
+    #     # Làm mới Thumbnail
+    #     save_thumbnail(camera['RTSP'], camera['CameraID'])
     
     try:
         type_list = ['Pose', 'Fire', 'Smoke']
@@ -3506,7 +3585,7 @@ def get_camera_id():
     cursor.execute("SELECT CameraID, RTSP_encode FROM Camera")
     results = cursor.fetchall()
     for result in results:
-        if rtsp == aes_decrypt(key=key, decrypt_text=result.RTSP_encode):     
+        if rtsp == aes_decrypt(result.RTSP_encode):     
             msg = f"Trả về id camera có rtsp là {rtsp}"
             print(msg)
             cursor.close()
@@ -3531,7 +3610,7 @@ def camera_info():
     camera_list = []
     for i in cam:
         camera_list.append({
-            'RTSP': i.RTSP_encode,
+            'RTSP': aes_decrypt(i.RTSP_encode),
             'CamID': i.CameraID,
             'HomeID': i.HomeID,
             'LockID': i.LockID,
@@ -3707,7 +3786,7 @@ def get_camera_data():
             'HomeID': row.HomeID,
             'LockID': row.LockID,
             'CameraName': row.CameraName,
-            'RTSP': row.RTSP_encode,
+            'RTSP': aes_decrypt(row.RTSP_encode),
             'LockpickingArea': json.loads(row.LockpickingArea) if row.LockpickingArea else None,
             'ClimbingArea': json.loads(row.ClimbingArea) if row.ClimbingArea else None,
             'BikeArea': json.loads(row.BikeArea) if row.BikeArea else None,
