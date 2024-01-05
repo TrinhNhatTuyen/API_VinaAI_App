@@ -1141,9 +1141,9 @@ def get_camera_in_home():
         
         cam_img = str(i.CameraID)
         cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
-        try:
+        if os.path.exists(cam_img_path):
             img = cv2.imread(cam_img_path)
-        except:
+        else:
             img = cv2.imread('cam_img/default.jpg')
         
         if img is None:
@@ -2381,7 +2381,7 @@ def add_camera():
         return jsonify({'message': 'Sai key'}), 400
     
     camera_name = data.get('camera_name')
-    homeid = data.get('homeid')
+    homename = data.get('homename')
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     cam_username = data.get('cam_username')
     cam_pass = data.get('cam_pass')
@@ -2389,7 +2389,7 @@ def add_camera():
     port = data.get('port')
     
     print("camera_name:", camera_name, ' - ', type(camera_name))
-    print("homeid:", homeid, ' - ', type(homeid))
+    print("homename:", homename, ' - ', type(homename))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     print("cam_username:", cam_username, ' - ', type(cam_username))
     print("cam_pass:", cam_pass, ' - ', type(cam_pass))
@@ -2414,6 +2414,11 @@ def add_camera():
         conn.close()
         return jsonify({'message': msg}), 404
     
+    # Từ CustomerID lấy HomeID trong bảng CustomerHome
+    cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ? AND HomeName = ?", (customerid, homename))
+    results = cursor.fetchall()
+    homeid = results[0][0]
+
     rtsp = aes_encrypt(f'rtsp://{cam_username}:{cam_pass}@{ddns}:{port}/cam/realmonitor?channel=1&subtype=0&unicast=true')
     
     # Lưu vào bảng Camera
@@ -2443,7 +2448,7 @@ def edit_camera():
     
     camera_id = data.get('camera_id')
     camera_name = data.get('camera_name')
-    homeid = data.get('homeid')
+    homename = data.get('homename')
     ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     cam_username = data.get('cam_username')
     cam_pass = data.get('cam_pass')
@@ -2451,7 +2456,7 @@ def edit_camera():
     port = data.get('port')
     
     print("camera_name:", camera_name, ' - ', type(camera_name))
-    print("homeid:", homeid, ' - ', type(homeid))
+    print("homename:", homename, ' - ', type(homename))
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     print("cam_username:", cam_username, ' - ', type(cam_username))
     print("cam_pass:", cam_pass, ' - ', type(cam_pass))
@@ -2475,6 +2480,11 @@ def edit_camera():
         cursor.close()
         conn.close()
         return jsonify({'message': msg}), 404
+    
+    # Từ CustomerID lấy HomeID trong bảng CustomerHome
+    cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ? AND HomeName = ?", (customerid, homename))
+    results = cursor.fetchall()
+    homeid = results[0][0]
     
     rtsp = aes_encrypt(f'rtsp://{cam_username}:{cam_pass}@{ddns}:{port}/cam/realmonitor?channel=1&subtype=0&unicast=true')
     
@@ -2584,9 +2594,9 @@ def get_camera():
         cam = cursor.fetchone()
         cam_img = str(i.CameraID)
         cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
-        try:
+        if os.path.exists(cam_img_path):
             img = cv2.imread(cam_img_path)
-        except:
+        else:
             img = cv2.imread('cam_img/default.jpg')
         
         if img is None:
