@@ -3685,20 +3685,30 @@ def camera_info():
         conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
-    cursor.execute("SELECT * FROM Camera")
-    cam = cursor.fetchall()
-    camera_list = []
-    for i in cam:
-        camera_list.append({
-            'RTSP': aes_decrypt(i.RTSP_encode),
-            'CamID': i.CameraID,
-            'HomeID': i.HomeID,
-            'LockID': i.LockID,
-        })
+    camera_id = data.get('camera_id')
+    print("camera_id:", camera_id, ' - ', type(camera_id))
+    
+    cursor.execute("SELECT * FROM Camera WHERE CameraID=?", (camera_id,))
+    
+    cam = cursor.fetchone()
+    rtsp = aes_decrypt(cam.RTSP_encode)
+    cam_username = rtsp.split(":")[1][2:]
+    cam_pass = '@'.join(rtsp.split(":")[2].split("@")[:-1])
+    ddns = rtsp.split("@")[-1].split(":")[0]
+    port = rtsp.split(":")[-1].split("/")[0]
+    
+    camera_info_list = []
+    camera_info_list.append({
+        'camera_name': cam.CameraName,
+        'cam_username': cam_username,
+        'cam_pass': cam_pass,
+        'ddns': ddns,
+        'port': port,
+    })
     print(f"Trả về danh sách thông tin camera")
     cursor.close()
     conn.close()
-    return json.dumps(camera_list), 200
+    return json.dumps(camera_info_list), 200
 
 #---------------------------------------------------------------------------------------------------  
   
