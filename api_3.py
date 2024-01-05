@@ -1145,6 +1145,10 @@ def get_camera_in_home():
             img = cv2.imread(cam_img_path)
         except:
             img = cv2.imread('cam_img/default.jpg')
+        
+        if img is None:
+            img = cv2.imread('cam_img/default.jpg')
+            
         _, image_data = cv2.imencode('.jpg', img)
         
         # Chuyển đổi dữ liệu ảnh thành chuỗi base64
@@ -2553,76 +2557,80 @@ def get_camera():
     
     # Lấy danh sách camera của User
     camera_list = []
-    try:
-        # Lấy cam của User
-        cursor.execute(f"""
-                            SELECT cam.LockID, cam.CameraID, cam.HomeID
-                            FROM Camera cam
-                            JOIN CustomerHome ch ON cam.HomeID = ch.HomeID
-                            WHERE ch.CustomerID = '{customer_id}'
-                        """)
-        result_1 = cursor.fetchall()
-        
-        # Lấy cam được thêm quyền
-        cursor.execute(f"""
-                            SELECT cam.LockID, cam.CameraID, cam.HomeID
-                            FROM Camera cam
-                            JOIN HomeMember hm ON cam.HomeID = hm.HomeID
-                            WHERE hm.HomeMemberID = {customer_id}
-                        """)
-        result_2 = cursor.fetchall()
-        
-        results = result_1 + result_2
-        
-        for i in results:
-                
-            cursor.execute("SELECT CameraName, RTSP_encode FROM Camera WHERE CameraID = ?", i.CameraID)
-            cam = cursor.fetchone()
-            cam_img = str(i.CameraID)
-            cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
-            try:
-                img = cv2.imread(cam_img_path)
-            except:
-                img = cv2.imread('cam_img/default.jpg')
-            _, image_data = cv2.imencode('.jpg', img)
+    # try:
+    # Lấy cam của User
+    cursor.execute(f"""
+                        SELECT cam.LockID, cam.CameraID, cam.HomeID
+                        FROM Camera cam
+                        JOIN CustomerHome ch ON cam.HomeID = ch.HomeID
+                        WHERE ch.CustomerID = '{customer_id}'
+                    """)
+    result_1 = cursor.fetchall()
+    
+    # Lấy cam được thêm quyền
+    cursor.execute(f"""
+                        SELECT cam.LockID, cam.CameraID, cam.HomeID
+                        FROM Camera cam
+                        JOIN HomeMember hm ON cam.HomeID = hm.HomeID
+                        WHERE hm.HomeMemberID = {customer_id}
+                    """)
+    result_2 = cursor.fetchall()
+    
+    results = result_1 + result_2
+    
+    for i in results:
             
-            # Chuyển đổi dữ liệu ảnh thành chuỗi base64
-            base64_image = base64.b64encode(image_data).decode("utf-8")
-            #--------------------------------------------------------------------------
-            
-            # Nếu cam không có khóa
-            if i.LockID==None:
-                camera_list.append({
-                    'HomeID': i.HomeID,
-                    'CameraID': i.CameraID,
-                    'LockID': None,
-                    'LockName': None,
-                    'CameraName': cam.CameraName,
-                    'RTSP': aes_decrypt(cam.RTSP_encode),
-                    'Hinh': base64_image,
-                })
-                
-            # Nếu cam có khóa
-            else:
-                cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", i.LockID)
-                lock = cursor.fetchone()
-                #----------------------------------------------------------------------        
-                camera_list.append({
-                    'HomeID': i.HomeID,
-                    'CameraID': i.CameraID,
-                    'LockID': i.LockID,
-                    'LockName': lock.LockName,
-                    'CameraName': cam.CameraName,
-                    'RTSP': aes_decrypt(cam.RTSP_encode),
-                    'Hinh': base64_image,
-                })
+        cursor.execute("SELECT CameraName, RTSP_encode FROM Camera WHERE CameraID = ?", i.CameraID)
+        cam = cursor.fetchone()
+        cam_img = str(i.CameraID)
+        cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
+        try:
+            img = cv2.imread(cam_img_path)
+        except:
+            img = cv2.imread('cam_img/default.jpg')
+        
+        if img is None:
+            img = cv2.imread('cam_img/default.jpg')
 
-    except Exception as e:
-        msg = f"Lỗi! Không lấy được danh sách camera của user {ten_tai_khoan_email_sdt}"
-        print(msg)
-        cursor.close()
-        conn.close()
-        return jsonify({'message': msg}), 404
+        _, image_data = cv2.imencode('.jpg', img)
+        
+        # Chuyển đổi dữ liệu ảnh thành chuỗi base64
+        base64_image = base64.b64encode(image_data).decode("utf-8")
+        #--------------------------------------------------------------------------
+        
+        # Nếu cam không có khóa
+        if i.LockID==None:
+            camera_list.append({
+                'HomeID': i.HomeID,
+                'CameraID': i.CameraID,
+                'LockID': None,
+                'LockName': None,
+                'CameraName': cam.CameraName,
+                'RTSP': aes_decrypt(cam.RTSP_encode),
+                'Hinh': base64_image,
+            })
+            
+        # Nếu cam có khóa
+        else:
+            cursor.execute("SELECT LockName FROM Lock WHERE LockID = ?", i.LockID)
+            lock = cursor.fetchone()
+            #----------------------------------------------------------------------        
+            camera_list.append({
+                'HomeID': i.HomeID,
+                'CameraID': i.CameraID,
+                'LockID': i.LockID,
+                'LockName': lock.LockName,
+                'CameraName': cam.CameraName,
+                'RTSP': aes_decrypt(cam.RTSP_encode),
+                'Hinh': base64_image,
+            })
+
+    # except Exception as e:
+    #     msg = f"Lỗi! Không lấy được danh sách camera của user {ten_tai_khoan_email_sdt}"
+    #     print(msg)
+    #     cursor.close()
+    #     conn.close()
+    #     return jsonify({'message': msg}), 404
     
     # for camera in camera_list:
     #     # Làm mới Thumbnail
