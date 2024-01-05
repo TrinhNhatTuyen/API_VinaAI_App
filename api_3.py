@@ -2448,52 +2448,24 @@ def edit_camera():
     
     camera_id = data.get('camera_id')
     camera_name = data.get('camera_name')
-    homename = data.get('homename')
-    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
     cam_username = data.get('cam_username')
     cam_pass = data.get('cam_pass')
     ddns = data.get('ddns')
     port = data.get('port')
     
     print("camera_name:", camera_name, ' - ', type(camera_name))
-    print("homename:", homename, ' - ', type(homename))
-    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     print("cam_username:", cam_username, ' - ', type(cam_username))
     print("cam_pass:", cam_pass, ' - ', type(cam_pass))
     print("ddns:", ddns, ' - ', type(ddns))
-
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
-    try:
-        if "@" in ten_tai_khoan_email_sdt:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
-        elif ten_tai_khoan_email_sdt.isdigit():
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
-        else:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
-            
-        customerid = cursor.fetchone().CustomerID
-        cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
-        username = cursor.fetchone().Username
-    except:
-        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
-        print(msg)
-        cursor.close()
-        conn.close()
-        return jsonify({'message': msg}), 404
-    
-    # Từ CustomerID lấy HomeID trong bảng CustomerHome
-    cursor.execute("SELECT HomeID FROM CustomerHome WHERE CustomerID = ? AND HomeName = ?", (customerid, homename))
-    results = cursor.fetchall()
-    homeid = results[0][0]
     
     rtsp = aes_encrypt(f'rtsp://{cam_username}:{cam_pass}@{ddns}:{port}/cam/realmonitor?channel=1&subtype=0&unicast=true')
     
     # Lưu vào bảng Camera
-    cursor.execute("UPDATE Camera SET CameraName=?, HomeID=?, Username=?, CamUsername=?, CamPass=?, RTSP_encode=? WHERE CameraID=?",
-                    (camera_name, homeid, username, cam_username, cam_pass, rtsp, camera_id))
+    cursor.execute("UPDATE Camera SET CameraName=?, CamUsername=?, CamPass=?, RTSP_encode=? WHERE CameraID=?",
+                    (camera_name, cam_username, cam_pass, rtsp, camera_id))
     conn.commit()
     
-    msg = f"Đã sửa thông tin cam của User {ten_tai_khoan_email_sdt}"
+    msg = f"Đã sửa thông tin cam ID {camera_id}"
     print(msg)
     cursor.close()
     conn.close()
