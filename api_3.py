@@ -2366,10 +2366,14 @@ def delete_passcode():
 
 @app.route('/api/camera/add', methods=['POST'])
 def add_camera():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     camera_name = data.get('camera_name')
@@ -2412,15 +2416,25 @@ def add_camera():
     cursor.execute("INSERT INTO Camera (CameraName, HomeID, Username, CamUsername, CamPass, RTSP_encode) VALUES (?, ?, ?, ?, ?, ?)",
                    (camera_name, homeid, username, cam_username, cam_pass, rtsp))
     conn.commit()
+    
+    msg = f"Đã thêm cam cho User {ten_tai_khoan_email_sdt}"
+    print(msg)
+    cursor.close()
+    conn.close()
+    return jsonify({'message': msg}), 201
 
 # #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/camera/edit', methods=['POST'])
 def edit_camera():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     camera_id = data.get('camera_id')
@@ -2464,6 +2478,12 @@ def edit_camera():
     cursor.execute("UPDATE Camera SET CameraName=?, HomeID=?, Username=?, CamUsername=?, CamPass=?, RTSP_encode=? WHERE CameraID=?",
                     (camera_name, homeid, username, cam_username, cam_pass, rtsp, camera_id))
     conn.commit()
+    
+    msg = f"Đã sửa thông tin cam của User {ten_tai_khoan_email_sdt}"
+    print(msg)
+    cursor.close()
+    conn.close()
+    return jsonify({'message': msg}), 200
 
 # #---------------------------------------------------------------------------------------------------
 
