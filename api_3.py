@@ -909,7 +909,7 @@ def homeinfo():
         
         for result in results:
             # Lấy các cam trong nhà đó
-            cursor.execute("SELECT CameraName, CameraID FROM Camera WHERE HomeID = ?", result.HomeID)
+            cursor.execute("SELECT CameraName, CameraID FROM Camera WHERE HomeID = ? AND CameraStatus = ?", (result.HomeID, 1))
             cam = cursor.fetchall()
             home_info_list.append({
                 'HomeName': result.HomeName,
@@ -944,7 +944,7 @@ def homeinfo():
                     (homeid, admin_id))
         result = cursor.fetchone()
         # Lấy các cam trong nhà đó
-        cursor.execute("SELECT CameraName, CameraID FROM Camera WHERE HomeID = ?", homeid)
+        cursor.execute("SELECT CameraName, CameraID FROM Camera WHERE HomeID = ? AND CameraStatus = ?", (homeid, 1))
         cam = cursor.fetchall()
         # Chuyển danh sách các tuple thành danh sách các dictionary
         home_info_list.append({
@@ -1135,7 +1135,7 @@ def get_camera_in_home():
     print("homeid:", homeid, ' - ', type(homeid))
 
     home_info_list = []
-    cursor.execute("SELECT CameraID, CameraName, HomeID, LockID, CamUsername, RTSP_encode FROM Camera WHERE HomeID = ?", homeid)
+    cursor.execute("SELECT CameraID, CameraName, HomeID, LockID, CamUsername, RTSP_encode FROM Camera WHERE HomeID = ? AND CameraStatus = ?", (homeid, 1))
     results = cursor.fetchall()
     for i in results:
         
@@ -2473,6 +2473,26 @@ def edit_camera():
 
 # #---------------------------------------------------------------------------------------------------
 
+@app.route('/api/camera/delete', methods=['POST'])
+def delete_camera():
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        return jsonify({'message': 'Sai key'}), 400
+    
+    camera_id = data.get('camera_id')
+
+    
+    print("camera_id:", camera_id, ' - ', type(camera_id))
+    
+    # Lưu vào bảng Camera
+    cursor.execute("UPDATE Camera SET CameraStatus=? WHERE CameraID=?",
+                    (0, camera_id))
+    conn.commit()
+    
+# #---------------------------------------------------------------------------------------------------
+
 # @app.route('/api/camera/add-existed-lock-to-cam', methods=['POST'])
 # def add_camera():
 #     conn = connect_to_database()
@@ -2545,8 +2565,8 @@ def get_camera():
                         SELECT cam.LockID, cam.CameraID, cam.HomeID
                         FROM Camera cam
                         JOIN CustomerHome ch ON cam.HomeID = ch.HomeID
-                        WHERE ch.CustomerID = '{customer_id}'
-                    """)
+                        WHERE ch.CustomerID = ? AND cam.CameraStatus = ?
+                    """, (customer_id, 1))
     result_1 = cursor.fetchall()
     
     # Lấy cam được thêm quyền
@@ -2554,15 +2574,15 @@ def get_camera():
                         SELECT cam.LockID, cam.CameraID, cam.HomeID
                         FROM Camera cam
                         JOIN HomeMember hm ON cam.HomeID = hm.HomeID
-                        WHERE hm.HomeMemberID = {customer_id}
-                    """)
+                        WHERE hm.HomeMemberID = ? AND cam.CameraStatus = ?
+                    """, (customer_id, 1))
     result_2 = cursor.fetchall()
     
     results = result_1 + result_2
     
     for i in results:
             
-        cursor.execute("SELECT CameraName, RTSP_encode FROM Camera WHERE CameraID = ?", i.CameraID)
+        cursor.execute("SELECT CameraName, RTSP_encode FROM Camera WHERE CameraID = ? AND CameraStatus = ?", (i.CameraID, 1))
         cam = cursor.fetchone()
         cam_img = str(i.CameraID)
         cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
@@ -2851,7 +2871,7 @@ def alert_get_by_user():
     # Lặp qua từng HomeID và lấy danh sách CameraID từ đó
     camera_ids = []
     for home_id in home_ids:
-        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
+        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ? AND CameraStatus = ?", (home_id, 1))
         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
     
     # try:
@@ -2939,7 +2959,7 @@ def pose_get_by_user():
     # Lặp qua từng HomeID và lấy danh sách CameraID từ đó
     camera_ids = []
     for home_id in home_ids:
-        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
+        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ? AND CameraStatus = ?", (home_id, 1))
         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
     
     # try:
@@ -3027,7 +3047,7 @@ def fire_get_by_user():
     # Lặp qua từng HomeID và lấy danh sách CameraID từ đó
     camera_ids = []
     for home_id in home_ids:
-        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
+        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ? AND CameraStatus = ?", (home_id, 1))
         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
     
     # try:
@@ -3343,7 +3363,7 @@ def get_all_notifications():
     # Lặp qua từng HomeID và lấy danh sách CameraID từ đó (lấy tất cả CameraID mà User có quyền truy cập)
     camera_ids = []
     for home_id in home_ids:
-        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
+        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ? AND CameraStatus = ?", (home_id, 1))
         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
         
     # try:
@@ -3511,7 +3531,7 @@ def set_all_seen():
     # Lặp qua từng HomeID và lấy danh sách CameraID từ đó
     camera_ids = []
     for home_id in home_ids:
-        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
+        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ? AND CameraStatus = ?", (home_id, 1))
         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
         
     # try:
@@ -3528,8 +3548,6 @@ def set_all_seen():
                             N.ID_Notification
                         FROM
                             Notification N
-                        LEFT JOIN
-                            Camera C ON N.CameraID = C.CameraID
                         WHERE
                             N.CameraID IN ({', '.join(map(str, camera_ids))}) OR N.CustomerID = {customerid}
                         ORDER BY N.Date DESC
@@ -3594,27 +3612,44 @@ def count_new_ntf():
     # Lặp qua từng HomeID và lấy danh sách CameraID từ đó (lấy tất cả CameraID mà User có quyền truy cập)
     camera_ids = []
     for home_id in home_ids:
-        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ?", (home_id,))
+        cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ? AND CameraStatus = ?", (home_id, 1))
         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
     
     if len(camera_ids)==0:
         cursor.execute("SELECT COUNT(*) FROM Notification WHERE CustomerID = ?", (customerid,))
+        all_ntf = cursor.fetchone()[0]
+        cursor.execute(f"""SELECT COUNT(*) FROM Seen 
+                            WHERE CustomerID = {customerid}
+                        """)
+        count = all_ntf - cursor.fetchone()[0]
+        cursor.close()
+        conn.close()
+        return jsonify({"message": count}), 200
     else:
+        # Lấy danh sách tất cả ID_Notification từ bảng Notification
         cursor.execute("""
-                            SELECT COUNT(*)
+                            SELECT ID_Notification
                             FROM Notification
                             WHERE CameraID IN ({camera_ids}) OR CustomerID = {customerid}
                         """.format(camera_ids=', '.join(map(str, camera_ids)), customerid=customerid))
         
-    all_ntf = cursor.fetchone()[0]
-    cursor.execute(f"""SELECT COUNT(*) FROM Seen 
-                        WHERE CustomerID = {customerid}
-                    """)
-    count = all_ntf - cursor.fetchone()[0]
-    cursor.close()
-    conn.close()
-    return jsonify({"message": count}), 200
-    # return Response(str(count), mimetype='text/plain'), 200
+        ntf_ids = [row.ID_Notification for row in cursor.fetchall()]
+        
+        if ntf_ids:
+            all_ntf = len(ntf_ids)
+            cursor.execute(f"""
+                SELECT COUNT(*)
+                FROM Seen
+                WHERE ID_Notification IN ({', '.join(map(str, ntf_ids))})
+            """)
+            count = all_ntf - cursor.fetchone()[0]
+        else:
+            count = 0
+        
+        cursor.close()
+        conn.close()
+        return jsonify({"message": count}), 200
+        # return Response(str(count), mimetype='text/plain'), 200
 #########################################################################################################################
 #########################################################################################################################
 
@@ -3634,7 +3669,7 @@ def get_camera_id():
     
     rtsp = data.get('rtsp')
     print("rtsp:", rtsp, ' - ', type(rtsp))
-    cursor.execute("SELECT CameraID, RTSP_encode FROM Camera")
+    cursor.execute("SELECT CameraID, RTSP_encode FROM Camera WHERE CameraStatus = ?", (1,))
     results = cursor.fetchall()
     for result in results:
         if rtsp == aes_decrypt(result.RTSP_encode):     
@@ -3837,7 +3872,7 @@ def get_camera_data():
         return jsonify({'message': 'Sai key'}), 400
     
     # Truy vấn SQL để lấy dữ liệu từ bảng Camera
-    cursor.execute("SELECT CameraID, HomeID, LockID, CameraName, RTSP_encode, LockpickingArea, ClimbingArea, BikeArea, RelatedCameraID FROM Camera")
+    cursor.execute("SELECT CameraID, HomeID, LockID, CameraName, RTSP_encode, LockpickingArea, ClimbingArea, BikeArea, RelatedCameraID FROM Camera WHERE CameraStatus = ?", (1,))
     
     # Trích xuất dữ liệu từ kết quả truy vấn
     camera_data = []
