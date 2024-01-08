@@ -2696,11 +2696,30 @@ def alert_get_by_camera():
         conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
-    # ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
-    # print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     camera_id = data.get('camera_id')
     print("camera_id:", camera_id, ' - ', type(camera_id))
-    # try:
+    
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
     cursor.execute("SELECT * FROM Notification WHERE CameraID = ? ORDER BY Date DESC", camera_id)
     notifications = cursor.fetchall()
     notification_list = []
@@ -2717,7 +2736,7 @@ def alert_get_by_camera():
     
     # Trả về trường "Seen" để biết thông báo đã xem chưa
     for i in notification_list:
-        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (i['ID_Notification'], customerid))
         if cursor.fetchone():
             i['Seen'] = 'True'
         else:
@@ -2727,10 +2746,6 @@ def alert_get_by_camera():
     cursor.close()
     conn.close()
     return json.dumps(notification_list), 200
-    # except:
-    #     msg = f"Lỗi! Không lấy được list các thông báo của User {username}"
-    #     print(msg)
-    #     return jsonify({'message': msg}), 404
 
 #---------------------------------------------------------------------------------------------------
 
@@ -2746,11 +2761,30 @@ def pose_get_by_camera():
         conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
-    # ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
-    # print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     camera_id = data.get('camera_id')
     print("camera_id:", camera_id, ' - ', type(camera_id))
-    # try:
+    
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
     cursor.execute("SELECT * FROM Notification WHERE CameraID = ? ORDER BY Date DESC", camera_id)
     notifications = cursor.fetchall()
     notification_list = []
@@ -2767,7 +2801,7 @@ def pose_get_by_camera():
     
     # Trả về trường "Seen" để biết thông báo đã xem chưa
     for i in notification_list:
-        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (i['ID_Notification'], customerid))
         if cursor.fetchone():
             i['Seen'] = 'True'
         else:
@@ -2777,10 +2811,6 @@ def pose_get_by_camera():
     cursor.close()
     conn.close()
     return json.dumps(notification_list), 200
-    # except:
-    #     msg = f"Lỗi! Không lấy được list các thông báo của User {username}"
-    #     print(msg)
-    #     return jsonify({'message': msg}), 404
 
 #---------------------------------------------------------------------------------------------------
 
@@ -2796,11 +2826,30 @@ def fire_get_by_camera():
         conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
-    # ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
-    # print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     camera_id = data.get('camera_id')
     print("camera_id:", camera_id, ' - ', type(camera_id))
-    # try:
+    
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        customerid = cursor.fetchone().CustomerID
+        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+        # username = cursor.fetchone().Username
+    except:
+        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
     cursor.execute("SELECT * FROM Notification WHERE CameraID = ? ORDER BY Date DESC", camera_id)
     notifications = cursor.fetchall()
     notification_list = []
@@ -2817,7 +2866,7 @@ def fire_get_by_camera():
     
     # Trả về trường "Seen" để biết thông báo đã xem chưa
     for i in notification_list:
-        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (i['ID_Notification'], customerid))
         if cursor.fetchone():
             i['Seen'] = 'True'
         else:
@@ -2827,10 +2876,6 @@ def fire_get_by_camera():
     cursor.close()
     conn.close()
     return json.dumps(notification_list), 200
-    # except:
-    #     msg = f"Lỗi! Không lấy được list các thông báo của User {username}"
-    #     print(msg)
-    #     return jsonify({'message': msg}), 404
 
 #---------------------------------------------------------------------------------------------------
 
@@ -2909,7 +2954,7 @@ def alert_get_by_user():
         
     # Trả về trường "Seen" để biết thông báo đã xem chưa
     for i in notification_list:
-        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (i['ID_Notification'], customerid))
         if cursor.fetchone():
             i['Seen'] = 'True'
         else:
@@ -2997,7 +3042,7 @@ def pose_get_by_user():
         
     # Trả về trường "Seen" để biết thông báo đã xem chưa
     for i in notification_list:
-        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (i['ID_Notification'], customerid))
         if cursor.fetchone():
             i['Seen'] = 'True'
         else:
@@ -3085,7 +3130,7 @@ def fire_get_by_user():
         
     # Trả về trường "Seen" để biết thông báo đã xem chưa
     for i in notification_list:
-        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (i['ID_Notification'], customerid))
         if cursor.fetchone():
             i['Seen'] = 'True'
         else:
@@ -3438,7 +3483,7 @@ def get_all_notifications():
         
     for i in notification_list:
         # Trả về trường "Seen" để biết thông báo đã xem chưa
-        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ?", i['ID_Notification'])
+        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (i['ID_Notification'], customerid))
         if cursor.fetchone():
             i['Seen'] = 'True'
         else:
@@ -3655,7 +3700,7 @@ def count_new_ntf():
             cursor.execute(f"""
                 SELECT COUNT(*)
                 FROM Seen
-                WHERE ID_Notification IN ({', '.join(map(str, ntf_ids))})
+                WHERE ID_Notification IN ({', '.join(map(str, ntf_ids))}) AND CustomerID={customerid}
             """)
             count = all_ntf - cursor.fetchone()[0]
         else:
