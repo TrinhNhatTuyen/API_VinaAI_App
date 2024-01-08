@@ -2422,8 +2422,8 @@ def add_camera():
     rtsp = aes_encrypt(f'rtsp://{cam_username}:{cam_pass}@{ddns}:{port}/cam/realmonitor?channel=1&subtype=0&unicast=true')
     
     # Lưu vào bảng Camera
-    cursor.execute("INSERT INTO Camera (CameraName, HomeID, Username, CamUsername, CamPass, RTSP_encode) VALUES (?, ?, ?, ?, ?, ?)",
-                   (camera_name, homeid, username, cam_username, cam_pass, rtsp))
+    cursor.execute("INSERT INTO Camera (CameraName, HomeID, Username, CamUsername, CamPass, RTSP_encode, CameraStatus) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                   (camera_name, homeid, username, cam_username, cam_pass, rtsp, 1))
     conn.commit()
     
     msg = f"Đã thêm cam cho User {ten_tai_khoan_email_sdt}"
@@ -2475,10 +2475,14 @@ def edit_camera():
 
 @app.route('/api/camera/delete', methods=['POST'])
 def delete_camera():
+    conn = connect_to_database()
+    cursor = conn.cursor()
     data = request.get_json()
     key = data.get('key')
     if key not in api_keys:
         print('Sai key')
+        cursor.close()
+        conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
     camera_id = data.get('camera_id')
@@ -2490,6 +2494,11 @@ def delete_camera():
     cursor.execute("UPDATE Camera SET CameraStatus=? WHERE CameraID=?",
                     (0, camera_id))
     conn.commit()
+    msg = f"Đã xóa cam ID {camera_id}"
+    print(msg)
+    cursor.close()
+    conn.close()
+    return jsonify({'message': msg}), 200
     
 # #---------------------------------------------------------------------------------------------------
 
