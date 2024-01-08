@@ -3384,22 +3384,28 @@ def get_all_notifications():
         Với các hàng có CameraID nằm trong list camera_ids thì phải lấy ra CameraName, 
             nếu không thì trả về CameraName là null
     """
-    cursor.execute(f"""
-                        SELECT
-                            CASE
-                                WHEN C.CameraID IN ({', '.join(map(str, camera_ids))}) THEN C.CameraName
-                                ELSE NULL
-                            END AS CameraName,
-                            N.*
-                        FROM
-                            Notification N
-                        LEFT JOIN
-                            Camera C ON N.CameraID = C.CameraID
-                        WHERE
-                            N.CameraID IN ({', '.join(map(str, camera_ids))}) OR N.CustomerID = {customerid}
-                        ORDER BY N.Date DESC
-                    """)
+    no_camera = False
+    if len(camera_ids)==0:
+        cursor.execute(f"SELECT * FROM Notification WHERE CustomerID = {customerid} ORDER BY Date DESC")
+        no_camera = True
+    else:
+        cursor.execute(f"""
+                            SELECT
+                                CASE
+                                    WHEN C.CameraID IN ({', '.join(map(str, camera_ids))}) THEN C.CameraName
+                                    ELSE NULL
+                                END AS CameraName,
+                                N.*
+                            FROM
+                                Notification N
+                            LEFT JOIN
+                                Camera C ON N.CameraID = C.CameraID
+                            WHERE
+                                N.CameraID IN ({', '.join(map(str, camera_ids))}) OR N.CustomerID = {customerid}
+                            ORDER BY N.Date DESC
+                        """)
     notifications = cursor.fetchall()
+    
     notification_list = []
     if date_range is not None:
         date_parts = date_range.split(" - ")
@@ -3411,8 +3417,8 @@ def get_all_notifications():
             date = notification.Date
             if start_date <= date <= (end_date+datetime.timedelta(days=1)):
                 notification_list.append({
-                    'CameraID': notification.CameraID,
-                    'CameraName': notification.CameraName,
+                    'CameraID': None if no_camera else notification.CameraID,
+                    'CameraName': None if no_camera else notification.CameraName,
                     'ID_Notification': notification.ID_Notification,
                     'Type': notification.Type,
                     'Title': notification.Title,
@@ -3421,8 +3427,8 @@ def get_all_notifications():
                 })
         else:
             notification_list.append({
-                'CameraID': notification.CameraID,
-                'CameraName': notification.CameraName,
+                'CameraID': None if no_camera else notification.CameraID,
+                'CameraName': None if no_camera else notification.CameraName,
                 'ID_Notification': notification.ID_Notification,
                 'Type': notification.Type,
                 'Title': notification.Title,
