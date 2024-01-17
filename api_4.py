@@ -1,4 +1,5 @@
 
+from flask_cors import CORS
 from flask import Flask, request, jsonify, Response
 import socket, pyodbc, random, time, os, cv2, base64, hashlib, requests, datetime, json, math, hashlib, argon2, firebase_admin
 from argon2 import PasswordHasher
@@ -15,6 +16,7 @@ cred = credentials.Certificate('ngocvinaai-firebase-adminsdk-57cev-b988d1a956.js
 firebase_admin.initialize_app(cred)
 
 app = Flask(__name__)
+CORS(app)
 value = None
 random_banner = ''
 current_banner = ''
@@ -3709,7 +3711,7 @@ def count_new_ntf():
         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
     
     if len(camera_ids)==0:
-        cursor.execute("SELECT COUNT(*) FROM Notification WHERE CustomerID = ?", (customerid,))
+        cursor.execute("SELECT COUNT(*) FROM Notification WHERE CustomerID = ? AND Send = ?", (customerid, 1))
         all_ntf = cursor.fetchone()[0]
         cursor.execute(f"""SELECT COUNT(*) FROM Seen 
                             WHERE CustomerID = {customerid}
@@ -3723,7 +3725,7 @@ def count_new_ntf():
         cursor.execute("""
                             SELECT ID_Notification
                             FROM Notification
-                            WHERE CameraID IN ({camera_ids}) OR CustomerID = {customerid}
+                            WHERE (CameraID IN ({camera_ids}) OR CustomerID = {customerid}) AND Send = 1
                         """.format(camera_ids=', '.join(map(str, camera_ids)), customerid=customerid))
         
         ntf_ids = [row.ID_Notification for row in cursor.fetchall()]
@@ -3858,8 +3860,8 @@ def save_notification():
     #----------------------------------------------------------------------------------------------
     
     # try:
-    cursor.execute("INSERT INTO Notification (CameraID, Type, Title, Body, Date, ImagePath) VALUES (?, ?, ?, ?, ?, ?)", 
-                   (camera_id, notification_type, title, body, current_time, img_path))
+    cursor.execute("INSERT INTO Notification (CameraID, Type, Title, Body, Date, ImagePath, Send) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                   (camera_id, notification_type, title, body, current_time, img_path, 0))
     conn.commit()
     
     msg = f"Đã lưu thông tin về thông báo vào database"
@@ -4502,12 +4504,13 @@ def push_ntf():
     #---------------------------------------------------------------------------------------------------
     # Đánh dấu đã push thông báo
     cursor.execute("UPDATE Notification SET Send = 1 WHERE ID_Notification = ?", (id_notification,))
+    conn.commit()
     
     msg = "Push thông báo thành công"
     print(msg)
     cursor.close()
     conn.close()
-    return Response(msg, mimetype='text/plain'), 200
+    return jsonify({'message': msg}), 200
 
 #########################################################################################################################
 #########################################################################################################################
