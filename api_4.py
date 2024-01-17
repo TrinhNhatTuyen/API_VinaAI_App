@@ -4393,7 +4393,7 @@ def all_camera():
     conn.close()
     return json.dumps(camera_list), 200
 
-@app.route('/api/ntf/get-all', methods=['POST'])
+@app.route('/api/ntf/get-new', methods=['POST'])
 def get_all_ntf():
     conn = connect_to_database()
     cursor = conn.cursor()
@@ -4409,7 +4409,7 @@ def get_all_ntf():
     camera_id = data.get('camera_id')
     print("camera_id:", camera_id, ' - ', type(camera_id))
     
-    cursor.execute("SELECT * FROM Notification WHERE CameraID=?", (camera_id,))
+    cursor.execute("SELECT * FROM Notification WHERE CameraID=? AND Send=0", (camera_id,))
     notifications=cursor.fetchall()
     
     if date_range is not None:
@@ -4439,6 +4439,19 @@ def get_all_ntf():
                 'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
                 'Send': notification.Send, # Thông báo đã gửi (1), chưa gửi (0)
             })
+    
+    for i in notification_list:
+        cursor.execute("SELECT ImagePath FROM Notification WHERE ID_Notification = ?", i['ID_Notification'])
+        row = cursor.fetchone()
+        try:
+            image_path = row.ImagePath
+            # Chuyển ảnh sang base64
+            img = cv2.imread(image_path)
+            _, image_data = cv2.imencode('.jpg', img)
+            base64_image = base64.b64encode(image_data).decode("utf-8")
+            i['Image'] = base64_image
+        except:
+            i['Image'] = None
     
     print(f"Trả về list các thông báo của Camera ID: {camera_id}...")
     cursor.close()
