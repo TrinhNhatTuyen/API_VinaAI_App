@@ -2691,7 +2691,7 @@ def get_camera():
             
             # Thêm trường LastestAlert và Date cho mỗi Cam
             cam_id = camera['CameraID']
-            cursor.execute(f"SELECT TOP 1 * FROM Notification WHERE CameraID = ? AND Type IN ({placeholders}) ORDER BY Date DESC", (cam_id, *type_list))
+            cursor.execute(f"SELECT TOP 1 * FROM Notification WHERE CameraID = ? AND Type IN ({placeholders}) AND Send=1 ORDER BY Date DESC", (cam_id, *type_list))
             row = cursor.fetchone()
             if row:
                 camera['ID_LastestAlert'] = row.ID_Notification
@@ -2754,7 +2754,7 @@ def alert_get_by_camera():
         conn.close()
         return jsonify({'message': msg}), 404
     
-    cursor.execute("SELECT * FROM Notification WHERE CameraID = ? ORDER BY Date DESC", camera_id)
+    cursor.execute("SELECT * FROM Notification WHERE CameraID = ? AND Send=1 ORDER BY Date DESC", camera_id)
     notifications = cursor.fetchall()
     notification_list = []
     for notification in notifications:
@@ -3644,7 +3644,8 @@ def set_all_seen():
                         FROM
                             Notification N
                         WHERE
-                            N.CameraID IN ({', '.join(map(str, camera_ids))}) OR N.CustomerID = {customerid}
+                            (N.CameraID IN ({', '.join(map(str, camera_ids))}) OR N.CustomerID = {customerid}) AND
+                            N.Send=1
                         ORDER BY N.Date DESC
                     """)
     results = cursor.fetchall()
@@ -4394,7 +4395,7 @@ def all_camera():
     return json.dumps(camera_list), 200
 
 @app.route('/api/ntf/get-new', methods=['POST'])
-def get_all_ntf():
+def get_new_ntf():
     conn = connect_to_database()
     cursor = conn.cursor()
     data = request.get_json()
@@ -4409,7 +4410,7 @@ def get_all_ntf():
     camera_id = data.get('camera_id')
     print("camera_id:", camera_id, ' - ', type(camera_id))
     
-    cursor.execute("SELECT * FROM Notification WHERE CameraID=? AND Send=0", (camera_id,))
+    cursor.execute("SELECT * FROM Notification WHERE CameraID=? AND Send=0 ORDER BY Date DESC", (camera_id,))
     notifications=cursor.fetchall()
     
     if date_range is not None:
@@ -4457,7 +4458,97 @@ def get_all_ntf():
     cursor.close()
     conn.close()
     return json.dumps(notification_list), 200
-        
+
+@app.route('/api/ntf/get-all-new', methods=['POST'])
+def get_all_ntf():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    
+    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
+    try:
+        if "@" in ten_tai_khoan_email_sdt:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+        elif ten_tai_khoan_email_sdt.isdigit():
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+        else:
+            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+            
+        results = cursor.fetchall()
+        customer_id = results[0][0]
+    except:
+        msg = f"Lỗi! Không lấy được CustomerID của user {ten_tai_khoan_email_sdt}"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
+    # Lấy danh sách camera của User
+    #   Lấy cam của User
+    cursor.execute(f"""
+                        SELECT cam.CameraID
+                        FROM Camera cam
+                        JOIN CustomerHome ch ON cam.HomeID = ch.HomeID
+                        WHERE ch.CustomerID = ? AND cam.CameraStatus = ?
+                    """, (customer_id, 1))
+    result_1 = cursor.fetchall()
+    
+    #   Lấy cam được thêm quyền
+    cursor.execute(f"""
+                        SELECT cam.CameraID
+                        FROM Camera cam
+                        JOIN HomeMember hm ON cam.HomeID = hm.HomeID
+                        WHERE hm.HomeMemberID = ? AND cam.CameraStatus = ?
+                    """, (customer_id, 1))
+    result_2 = cursor.fetchall()
+    
+    results = result_1 + result_2
+    camera_id_list = []
+    for i in results:
+        camera_id_list.append(i.CameraID)
+    
+    placeholders = ",".join("?" * len(camera_id_list))
+    cursor.execute(f"SELECT * FROM Notification WHERE CameraID IN ({placeholders}) AND Send=0 ORDER BY Date DESC", tuple(camera_id_list))
+    notifications=cursor.fetchall()
+    
+    notification_list = []
+    for notification in notifications:
+        notification_list.append({
+            'ID_Notification': notification.ID_Notification,
+            'Type': notification.Type,
+            'Title': notification.Title,
+            'Body': notification.Body,
+            'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+            'Send': notification.Send, # Thông báo đã gửi (1), chưa gửi (0)
+        })
+    
+    for i in notification_list:
+        cursor.execute("SELECT ImagePath FROM Notification WHERE ID_Notification = ?", i['ID_Notification'])
+        row = cursor.fetchone()
+        try:
+            image_path = row.ImagePath
+            # Chuyển ảnh sang base64
+            img = cv2.imread(image_path)
+            _, image_data = cv2.imencode('.jpg', img)
+            base64_image = base64.b64encode(image_data).decode("utf-8")
+            i['Image'] = base64_image
+        except:
+            i['Image'] = None
+    
+    print(f"Trả về list các thông báo mới")
+    cursor.close()
+    conn.close()
+    return json.dumps(notification_list), 200
+
 @app.route('/api/ntf/push', methods=['POST'])
 def push_ntf():
     conn = connect_to_database()
