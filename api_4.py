@@ -4471,53 +4471,7 @@ def get_all_ntf():
         conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
-    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
-    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
-    
-    # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
-    try:
-        if "@" in ten_tai_khoan_email_sdt:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
-        elif ten_tai_khoan_email_sdt.isdigit():
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
-        else:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
-            
-        results = cursor.fetchall()
-        customer_id = results[0][0]
-    except:
-        msg = f"Lỗi! Không lấy được CustomerID của user {ten_tai_khoan_email_sdt}"
-        print(msg)
-        cursor.close()
-        conn.close()
-        return jsonify({'message': msg}), 404
-    
-    # Lấy danh sách camera của User
-    #   Lấy cam của User
-    cursor.execute(f"""
-                        SELECT cam.CameraID
-                        FROM Camera cam
-                        JOIN CustomerHome ch ON cam.HomeID = ch.HomeID
-                        WHERE ch.CustomerID = ? AND cam.CameraStatus = ?
-                    """, (customer_id, 1))
-    result_1 = cursor.fetchall()
-    
-    #   Lấy cam được thêm quyền
-    cursor.execute(f"""
-                        SELECT cam.CameraID
-                        FROM Camera cam
-                        JOIN HomeMember hm ON cam.HomeID = hm.HomeID
-                        WHERE hm.HomeMemberID = ? AND cam.CameraStatus = ?
-                    """, (customer_id, 1))
-    result_2 = cursor.fetchall()
-    
-    results = result_1 + result_2
-    camera_id_list = []
-    for i in results:
-        camera_id_list.append(i.CameraID)
-    
-    placeholders = ",".join("?" * len(camera_id_list))
-    cursor.execute(f"SELECT * FROM Notification WHERE CameraID IN ({placeholders}) AND Send=0 ORDER BY Date DESC", tuple(camera_id_list))
+    cursor.execute(f"SELECT * FROM Notification WHERE Send=0 ORDER BY Date DESC")
     notifications=cursor.fetchall()
     
     notification_list = []
