@@ -4615,7 +4615,7 @@ def save_push_ntf():
     cursor.execute("SELECT ID_Notification, CameraID FROM Notification WHERE ImagePath=?", (img_path,))
     id_notification = cursor.fetchone().ID_Notification
     cursor.execute("SELECT CameraName FROM Camera WHERE CameraID=?", (camera_id,))
-    camera_name = cursor.fetchone().ID_Notification
+    camera_name = cursor.fetchone().CameraName
     
     print("id_notification:", id_notification, ' - ', type(id_notification))
     
