@@ -2730,29 +2730,29 @@ def alert_get_by_camera():
         conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
-    ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
-    print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
+    # ten_tai_khoan_email_sdt = data.get('ten_tai_khoan_email_sdt')
+    # print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     camera_id = data.get('camera_id')
     print("camera_id:", camera_id, ' - ', type(camera_id))
     
     # Từ "ten_tai_khoan_email_sdt" lấy CustomerID trong bảng Customer
-    try:
-        if "@" in ten_tai_khoan_email_sdt:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
-        elif ten_tai_khoan_email_sdt.isdigit():
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
-        else:
-            cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
+    # try:
+    #     if "@" in ten_tai_khoan_email_sdt:
+    #         cursor.execute("SELECT CustomerID FROM Customer WHERE Email = ?", ten_tai_khoan_email_sdt)
+    #     elif ten_tai_khoan_email_sdt.isdigit():
+    #         cursor.execute("SELECT CustomerID FROM Customer WHERE Mobile = ?", ten_tai_khoan_email_sdt)
+    #     else:
+    #         cursor.execute("SELECT CustomerID FROM Customer WHERE Username = ?", ten_tai_khoan_email_sdt)
             
-        customerid = cursor.fetchone().CustomerID
-        # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
-        # username = cursor.fetchone().Username
-    except:
-        msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
-        print(msg)
-        cursor.close()
-        conn.close()
-        return jsonify({'message': msg}), 404
+    #     customerid = cursor.fetchone().CustomerID
+    #     # cursor.execute("SELECT Username FROM Customer WHERE CustomerID = ?", customerid)
+    #     # username = cursor.fetchone().Username
+    # except:
+    #     msg = f"Lỗi! Không lấy được Username của User {ten_tai_khoan_email_sdt}"
+    #     print(msg)
+    #     cursor.close()
+    #     conn.close()
+    #     return jsonify({'message': msg}), 404
     
     cursor.execute("SELECT * FROM Notification WHERE CameraID = ? AND Send=1 ORDER BY Date DESC", camera_id)
     notifications = cursor.fetchall()
@@ -2769,12 +2769,12 @@ def alert_get_by_camera():
             })
     
     # Trả về trường "Seen" để biết thông báo đã xem chưa
-    for i in notification_list:
-        cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (i['ID_Notification'], customerid))
-        if cursor.fetchone():
-            i['Seen'] = 'True'
-        else:
-            i['Seen'] = 'False'
+    # for i in notification_list:
+    #     cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (i['ID_Notification'], customerid))
+    #     if cursor.fetchone():
+    #         i['Seen'] = 'True'
+    #     else:
+    #         i['Seen'] = 'False'
             
     print(f"Trả về list các cảnh báo của Camera {camera_id}...")
     cursor.close()
@@ -3860,7 +3860,6 @@ def save_notification():
     
     #----------------------------------------------------------------------------------------------
     
-    # try:
     cursor.execute("INSERT INTO Notification (CameraID, Type, Title, Body, Date, ImagePath, Send) VALUES (?, ?, ?, ?, ?, ?, ?)", 
                    (camera_id, notification_type, title, body, current_time, img_path, 0))
     conn.commit()
@@ -3870,11 +3869,6 @@ def save_notification():
     cursor.close()
     conn.close()
     return jsonify({'message': msg}), 201
-
-    # except:
-    #     msg = f"Lỗi! Không cập nhật được thông báo"
-    #     print(msg)
-    #     return jsonify({'message': msg}), 404
 
 #---------------------------------------------------------------------------------------------------
 
@@ -4570,6 +4564,104 @@ def push_ntf():
     conn.close()
     return jsonify({'message': msg}), 200
 
+@app.route('/api/ntf/save_push', methods=['POST'])
+def save_push_ntf():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    notification_type = data.get('notification_type')   # Lửa khói: Fire    # Hvi: Pose
+    title = data.get('title')                           # Cảnh báo cháy,      Mở khóa, Leo rào
+    body = data.get('body')                             # Có cháy, Có khói,   Mở khóa, Leo rào
+    anh_base64 = data.get('base64')
+    camera_id = data.get('camera_id')
+    
+    print("notification_type:", notification_type, ' - ', type(notification_type))
+    print("title:", title, ' - ', type(title))
+    print("body:", body, ' - ', type(body))
+    print("camera_id:", camera_id, ' - ', type(camera_id))
+
+    # Lấy thông tin ngày, tạo tên ảnh
+    current_time = datetime.datetime.now()
+    time_string = current_time.strftime("%H%M%S_%d%m%Y")
+    folder_path = f"Notification/{camera_id}/"
+    img_path = folder_path + f"{time_string}.jpg" ##### <<<<<<<<<<<<<<<<<<<<<<<<<<<
+    
+    # Kiểm tra thư mục ảnh thông báo tồn tại chưa
+    
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    
+    # Chuyển base64 sang ảnh
+    anh_base64 = np.frombuffer(base64.b64decode(anh_base64), dtype=np.uint8)
+    anh_base64 = cv2.imdecode(anh_base64, cv2.IMREAD_ANYCOLOR)
+    # image_rgb = cv2.cvtColor(anh_base64, cv2.COLOR_BGR2RGB)
+    
+    # Lưu ảnh vào folder "Notification/{camera_id}/"
+    cv2.imwrite(img_path, anh_base64)
+    
+    #----------------------------------------------------------------------------------------------
+    # Lưu thông báo vào database
+    cursor.execute("INSERT INTO Notification (CameraID, Type, Title, Body, Date, ImagePath, Send) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                   (camera_id, notification_type, title, body, current_time, img_path, 1))
+    conn.commit()
+    
+    cursor.execute("SELECT ID_Notification, CameraID FROM Notification WHERE ImagePath=?", (img_path,))
+    id_notification = cursor.fetchone().ID_Notification
+    cursor.execute("SELECT CameraName FROM Camera WHERE CameraID=?", (camera_id,))
+    camera_name = cursor.fetchone().ID_Notification
+    
+    print("id_notification:", id_notification, ' - ', type(id_notification))
+    
+    #---------------------------------------------------------------------------------------------------
+    # Lấy FCM list
+
+    # Lấy danh sách quyền từ camera_id
+    cursor.execute(f"""
+                        SELECT hm.AdminID, hm.HomeMemberID
+                        FROM HomeMember hm
+                        INNER JOIN Camera cam ON hm.HomeID = cam.HomeID
+                        WHERE cam.CameraID = {camera_id};
+                    """)
+    rows = cursor.fetchall()
+    customer_ids = []
+
+    for row in rows:
+        customer_ids.append(row.AdminID)
+        customer_ids.append(row.HomeMemberID)
+        
+    # Lấy ID Admin nếu căn hộ k có member
+    cursor.execute(f"""
+                        SELECT ch.CustomerID
+                        FROM Camera c
+                        INNER JOIN CustomerHome ch ON c.HomeID = ch.HomeID
+                        WHERE c.CameraID = {camera_id}
+                    """)
+    row = cursor.fetchone()
+    fcm_list = []
+    customer_ids.append(row.CustomerID)
+    
+    customer_ids = list(set(customer_ids))
+    
+    # Lấy danh sách FCM
+    cursor.execute("SELECT FCM FROM CustomerDevice WHERE CustomerID IN ({})".format(', '.join(map(str, customer_ids))))
+    fcm_list = [row.FCM for row in cursor]
+    
+    #---------------------------------------------------------------------------------------------------
+    # Push thông báo
+    push_alert(fcm_list=fcm_list, title=f'{camera_name} - {title}', body=body)
+    
+    msg = "Save và Push thông báo thành công"
+    print(msg)
+    cursor.close()
+    conn.close()
+    return jsonify({'message': msg}), 200
 #########################################################################################################################
 #########################################################################################################################
 if __name__ == '__main__':

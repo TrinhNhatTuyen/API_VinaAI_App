@@ -1873,7 +1873,7 @@ def get_camera():
             
             # Thêm trường LastestAlert và Date cho mỗi Cam
             cam_id = camera['CameraID']
-            cursor.execute("SELECT TOP 1 * FROM Notification WHERE CameraID = ? and Type = ? ORDER BY Date DESC", (cam_id, 'Alert'))
+            cursor.execute("SELECT TOP 1 * FROM Notification WHERE CameraID = ? and Type = ? ORDER BY Date DESC", (cam_id, 'Pose'))
             row = cursor.fetchone()
             if row:
                 camera['LastestAlert'] = row.Body

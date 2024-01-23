@@ -1,6 +1,6 @@
 
 from flask import Flask, request, jsonify, Response
-import socket, pyodbc, random, time, os, cv2, base64, hashlib, requests, datetime, json, math, hashlib, argon2
+import socket, pyodbc, random, time, os, cv2, base64, hashlib, requests, datetime, json, math, hashlib, argon2, firebase_admin
 from argon2 import PasswordHasher
 from matplotlib import pyplot
 import numpy as np
@@ -10,6 +10,9 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 from base64 import b64encode, b64decode
+from firebase_admin import credentials, messaging
+cred = credentials.Certificate('ngocvinaai-firebase-adminsdk-57cev-b988d1a956.json')
+firebase_admin.initialize_app(cred)
 
 app = Flask(__name__)
 value = None
@@ -166,6 +169,38 @@ def save_thumbnail(rtsp_url, camera_id, thumbnail_path='cam_img'):
 
     # Giải phóng tài nguyên
     cap.release()
+
+def push_alert(fcm_list, title, body, data=None):
+    
+    android_config = messaging.AndroidConfig(
+        priority='high',
+        notification=messaging.AndroidNotification(sound='res_sound45', priority='max')
+    )
+    apns_config = messaging.APNSConfig(
+        payload=messaging.APNSPayload(
+            aps=messaging.Aps(
+                alert=messaging.ApsAlert(
+                    title=title,
+                    body=body
+                ),
+                sound='res_sound45.wav'
+            ),
+            custom_data=data
+        )
+    )
+    
+    message = messaging.MulticastMessage( 
+                            notification = messaging.Notification( title=title, body=body), 
+                            android=android_config,
+                            apns=apns_config,
+                            tokens=fcm_list
+                            )
+    
+    # Gửi thông báo đến thiết bị cụ thể
+    response = messaging.send_multicast(message)
+    print(f"Failure Count: {response.failure_count}")
+    return response.failure_count
+
 #---------------------------------------------------------------------------------------------------
 # Lấy địa chỉ IP của máy
 def get_ip_address():
@@ -306,9 +341,6 @@ def check_account():
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     print("password:", password, ' - ', type(password))
     
-    # Mã hóa mật khẩu
-    password = argon2_encode(password)
-    
     # Kiểm tra nếu "ten_tai_khoan_email_sdt" có chứa ký tự "@"
     if "@" in ten_tai_khoan_email_sdt:
         # Kiểm tra có tồn tại Email này không
@@ -373,7 +405,7 @@ def check_account():
         query_check = "SELECT * FROM Customer WHERE Username = ?"
         cursor.execute(query_check, (ten_tai_khoan_email_sdt))
         result = cursor.fetchone()
-        if argon2_compare(password, result.Password):
+        if not argon2_compare(password, result.Password):
             msg = "Wrong Password"
             print(msg)
             cursor.close()
@@ -2785,7 +2817,7 @@ def pose_get_by_camera():
         conn.close()
         return jsonify({'message': msg}), 404
     
-    cursor.execute("SELECT * FROM Notification WHERE CameraID = ? ORDER BY Date DESC", camera_id)
+    cursor.execute("SELECT * FROM Notification WHERE CameraID = ? AND Send=1 ORDER BY Date DESC", camera_id)
     notifications = cursor.fetchall()
     notification_list = []
     for notification in notifications:
@@ -2850,7 +2882,7 @@ def fire_get_by_camera():
         conn.close()
         return jsonify({'message': msg}), 404
     
-    cursor.execute("SELECT * FROM Notification WHERE CameraID = ? ORDER BY Date DESC", camera_id)
+    cursor.execute("SELECT * FROM Notification WHERE CameraID = ? AND Send=1 ORDER BY Date DESC", camera_id)
     notifications = cursor.fetchall()
     notification_list = []
     for notification in notifications:
@@ -2935,7 +2967,7 @@ def alert_get_by_user():
                         SELECT n.ID_Notification, n.CameraID, n.Type, n.Title, n.Body, n.Date, n.ImagePath, c.CameraName                     
                         FROM Notification n
                         INNER JOIN Camera c ON n.CameraID = c.CameraID
-                        WHERE n.CameraID IN ({params})
+                        WHERE n.CameraID IN ({params}) AND n.Send=1
                         ORDER BY n.Date DESC
                     """, camera_ids)
     notifications = cursor.fetchall()
@@ -3023,7 +3055,7 @@ def pose_get_by_user():
                         SELECT n.ID_Notification, n.CameraID, n.Type, n.Title, n.Body, n.Date, n.ImagePath, c.CameraName                     
                         FROM Notification n
                         INNER JOIN Camera c ON n.CameraID = c.CameraID
-                        WHERE n.CameraID IN ({params})
+                        WHERE n.CameraID IN ({params}) AND n.Send=1
                         ORDER BY n.Date DESC
                     """, camera_ids)
     notifications = cursor.fetchall()
@@ -3111,7 +3143,7 @@ def fire_get_by_user():
                         SELECT n.ID_Notification, n.CameraID, n.Type, n.Title, n.Body, n.Date, n.ImagePath, c.CameraName                     
                         FROM Notification n
                         INNER JOIN Camera c ON n.CameraID = c.CameraID
-                        WHERE n.CameraID IN ({params})
+                        WHERE n.CameraID IN ({params}) AND n.Send=1
                         ORDER BY n.Date DESC
                     """, camera_ids)
     notifications = cursor.fetchall()
@@ -3431,7 +3463,7 @@ def get_all_notifications():
     """
     no_camera = False
     if len(camera_ids)==0:
-        cursor.execute(f"SELECT * FROM Notification WHERE CustomerID = {customerid} ORDER BY Date DESC")
+        cursor.execute(f"SELECT * FROM Notification WHERE CustomerID = {customerid} AND Send=1 ORDER BY Date DESC")
         no_camera = True
     else:
         cursor.execute(f"""
@@ -3446,7 +3478,8 @@ def get_all_notifications():
                             LEFT JOIN
                                 Camera C ON N.CameraID = C.CameraID
                             WHERE
-                                N.CameraID IN ({', '.join(map(str, camera_ids))}) OR N.CustomerID = {customerid}
+                                (N.CameraID IN ({', '.join(map(str, camera_ids))}) OR N.CustomerID = {customerid})
+                                AND Send=1
                             ORDER BY N.Date DESC
                         """)
     notifications = cursor.fetchall()
@@ -4288,7 +4321,194 @@ def delete_face():
         cursor.close()
         conn.close()
         return jsonify({'message': msg}), 500
+
+#========================================================================================================================
+
+@app.route('/api/all-account', methods=['POST'])
+def all_account():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
     
+    cursor.execute("SELECT CustomerID, Username, Email, Mobile, FullName FROM Customer")
+    results=cursor.fetchall()
+    account_list = []
+    for i in results:
+        account_list.append({
+            'customer_id': i.CustomerID,
+            'username': i.Username,
+            'email': i.Email,
+            'mobile': i.Mobile,
+            'fullname': i.FullName,
+        })
+    
+    cursor.close()
+    conn.close()
+    return json.dumps(account_list), 200
+
+@app.route('/api/all-camera', methods=['POST'])
+def all_camera():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    cursor.execute("SELECT CameraID, HomeID, CameraName, RTSP_encode FROM Camera WHERE CameraStatus=1")
+    results=cursor.fetchall()
+    
+    camera_list = []
+    for i in results:
+        cam_img = str(i.CameraID)
+        cam_img_path = os.path.join(cam_img_folder_path, cam_img+'.jpg')
+        if os.path.exists(cam_img_path):
+            img = cv2.imread(cam_img_path)
+        else:
+            img = cv2.imread('cam_img/default.jpg')
+
+        _, image_data = cv2.imencode('.jpg', img)
+        base64_image = base64.b64encode(image_data).decode("utf-8")
+        camera_list.append({
+            'HomeID': i.HomeID,
+            'CameraID': i.CameraID,
+            'CameraName': i.CameraName,
+            'RTSP': aes_decrypt(i.RTSP_encode),
+            'Hinh': base64_image,
+        })
+    
+    print(f"Trả về list tất cả Camera")
+    cursor.close()
+    conn.close()
+    return json.dumps(camera_list), 200
+
+@app.route('/api/ntf/get-all', methods=['POST'])
+def get_all_ntf():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    date_range = data.get('date_range')
+    camera_id = data.get('camera_id')
+    print("camera_id:", camera_id, ' - ', type(camera_id))
+    
+    cursor.execute("SELECT * FROM Notification WHERE CameraID=?", (camera_id,))
+    notifications=cursor.fetchall()
+    
+    if date_range is not None:
+        date_parts = date_range.split(" - ")
+        start_date = datetime.datetime.strptime(date_parts[0], "%Y-%m-%d %H:%M:%S.%f")
+        end_date = datetime.datetime.strptime(date_parts[1], "%Y-%m-%d %H:%M:%S.%f")
+    
+    notification_list = []
+    for notification in notifications:
+        if date_range is not None:
+            date = notification.Date
+            if start_date <= date <= (end_date+datetime.timedelta(days=1)):
+                notification_list.append({
+                    'ID_Notification': notification.ID_Notification,
+                    'Type': notification.Type,
+                    'Title': notification.Title,
+                    'Body': notification.Body,
+                    'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+                    'Send': notification.Send, # Thông báo đã gửi (1), chưa gửi (0)
+                })
+        else:
+            notification_list.append({
+                'ID_Notification': notification.ID_Notification,
+                'Type': notification.Type,
+                'Title': notification.Title,
+                'Body': notification.Body,
+                'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+                'Send': notification.Send, # Thông báo đã gửi (1), chưa gửi (0)
+            })
+    
+    print(f"Trả về list các thông báo của Camera ID: {camera_id}...")
+    cursor.close()
+    conn.close()
+    return json.dumps(notification_list), 200
+        
+@app.route('/api/ntf/push', methods=['POST'])
+def push_ntf():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+    
+    id_notification = data.get('id_notification')
+    print("id_notification:", id_notification, ' - ', type(id_notification))
+    
+    #---------------------------------------------------------------------------------------------------
+    # Lấy FCM list
+    cursor.execute("SELECT CameraID, Title, Body FROM Notification WHERE ID_Notification = ?", (id_notification,))
+    ntf = cursor.fetchone()
+    camera_id = ntf.CameraID
+
+    # Lấy danh sách quyền từ camera_id
+    cursor.execute(f"""
+                        SELECT hm.AdminID, hm.HomeMemberID
+                        FROM HomeMember hm
+                        INNER JOIN Camera cam ON hm.HomeID = cam.HomeID
+                        WHERE cam.CameraID = {camera_id};
+                    """)
+    rows = cursor.fetchall()
+    customer_ids = []
+
+    for row in rows:
+        customer_ids.append(row.AdminID)
+        customer_ids.append(row.HomeMemberID)
+        
+    # Lấy ID Admin nếu căn hộ k có member
+    cursor.execute(f"""
+                        SELECT ch.CustomerID
+                        FROM Camera c
+                        INNER JOIN CustomerHome ch ON c.HomeID = ch.HomeID
+                        WHERE c.CameraID = {camera_id}
+                    """)
+    row = cursor.fetchone()
+    fcm_list = []
+    customer_ids.append(row.CustomerID)
+    
+    customer_ids = list(set(customer_ids))
+    
+    # Lấy danh sách FCM
+    cursor.execute("SELECT FCM FROM CustomerDevice WHERE CustomerID IN ({})".format(', '.join(map(str, customer_ids))))
+    fcm_list = [row.FCM for row in cursor]
+    
+    #---------------------------------------------------------------------------------------------------
+    # Push thông báo
+    push_alert(fcm_list=fcm_list, title=ntf.Title, body=ntf.Body)
+
+    #---------------------------------------------------------------------------------------------------
+    # Đánh dấu đã push thông báo
+    cursor.execute("UPDATE Notification SET Send = 1 WHERE ID_Notification = ?", (id_notification,))
+    
+    msg = "Push thông báo thành công"
+    print(msg)
+    cursor.close()
+    conn.close()
+    return Response(msg, mimetype='text/plain'), 200
+
 #########################################################################################################################
 #########################################################################################################################
 if __name__ == '__main__':
