@@ -1715,6 +1715,13 @@ def add_home_member():
         cursor.close()
         conn.close()
         return jsonify({'message': msg}), 404
+    
+    if admin_id==homemember_id:
+        msg = f"Tài khoản được thêm chính là tài khoản Quản trị viên"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
     #---------------------------------------------------------------------------------------
     # Kiểm tra thêm quyền home-user này chưa
     cursor.execute("SELECT * FROM HomeMember WHERE HomeID = ? AND HomeMemberID = ?", (homeid, homemember_id))
@@ -2962,6 +2969,13 @@ def alert_get_by_user():
         cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ? AND CameraStatus = ?", (home_id, 1))
         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
     
+    if len(camera_ids)==0:
+        msg = f"Tài khoản chưa được thêm camera nào"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
     # try:
     params = ','.join('?' for _ in camera_ids)
     # cursor.execute(f"SELECT * FROM Notification WHERE CameraID IN ({params}) ORDER BY Date DESC", camera_id)
@@ -3050,6 +3064,13 @@ def pose_get_by_user():
         cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ? AND CameraStatus = ?", (home_id, 1))
         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
     
+    if len(camera_ids)==0:
+        msg = f"Tài khoản chưa được thêm camera nào"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
+    
     # try:
     params = ','.join('?' for _ in camera_ids)
     # cursor.execute(f"SELECT * FROM Notification WHERE CameraID IN ({params}) ORDER BY Date DESC", camera_id)
@@ -3137,6 +3158,13 @@ def fire_get_by_user():
     for home_id in home_ids:
         cursor.execute("SELECT CameraID FROM Camera WHERE HomeID = ? AND CameraStatus = ?", (home_id, 1))
         camera_ids.extend([row.CameraID for row in cursor.fetchall()])
+    
+    if len(camera_ids)==0:
+        msg = f"Tài khoản chưa được thêm camera nào"
+        print(msg)
+        cursor.close()
+        conn.close()
+        return jsonify({'message': msg}), 404
     
     # try:
     params = ','.join('?' for _ in camera_ids)
@@ -4662,6 +4690,24 @@ def save_push_ntf():
     cursor.close()
     conn.close()
     return jsonify({'message': msg}), 200
+
+# @app.route('/upload', methods=['POST'])
+# def upload():
+#     f = request.files['Image']
+#     f.save(os.path.join(app.root_path,'thongbao',f.filename))
+#     return("done")
+
+@app.route('/api/ntf/fcm_dat123', methods=['GET'])
+def fcm_dat123():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    cursor.execute("SELECT FCM FROM CustomerDevice WHERE CustomerID=5071")
+    fcm_list = [row.FCM for row in cursor]
+    msg = "Tra ve list FCM cua dat123"
+    print(msg)
+    cursor.close()
+    conn.close()
+    return json.dumps(fcm_list), 200
 #########################################################################################################################
 #########################################################################################################################
 if __name__ == '__main__':
