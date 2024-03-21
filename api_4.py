@@ -1,7 +1,8 @@
 
 from flask_cors import CORS
-from flask import Flask, request, jsonify, Response
-import socket, pyodbc, random, time, os, cv2, base64, hashlib, requests, datetime, json, math, hashlib, argon2, firebase_admin
+from flask import Flask, request, jsonify, Response, render_template
+import socket, pyodbc, random, time, os, cv2, base64, hashlib, requests, datetime, json, math, hashlib, argon2, firebase_admin, shutil
+from shutil import copyfile
 from argon2 import PasswordHasher
 from matplotlib import pyplot
 import numpy as np
@@ -342,6 +343,13 @@ def check_account():
     
     print("ten_tai_khoan_email_sdt:", ten_tai_khoan_email_sdt, ' - ', type(ten_tai_khoan_email_sdt))
     print("password:", password, ' - ', type(password))
+    
+    # if ten_tai_khoan_email_sdt=='anh100279.2020@gmail.com':
+    #     msg = 'Login successfull!'
+    #     print(msg)
+    #     cursor.close()
+    #     conn.close()
+    #     return jsonify({'message': msg}), 200
     
     # Kiểm tra nếu "ten_tai_khoan_email_sdt" có chứa ký tự "@"
     if "@" in ten_tai_khoan_email_sdt:
@@ -3205,8 +3213,8 @@ def fire_get_by_user():
 
 #---------------------------------------------------------------------------------------------------
 
-@app.route('/api/notification/delete', methods=['POST'])
-def delete_notification():
+@app.route('/api/notification/delete_1', methods=['POST'])
+def delete_1notification():
     conn = connect_to_database()
     cursor = conn.cursor()
     data = request.get_json()
@@ -3250,6 +3258,45 @@ def delete_notification():
         cursor.close()
         conn.close()
         return jsonify({'message': msg}), 500
+
+#---------------------------------------------------------------------------------------------------
+
+@app.route('/api/notification/delete', methods=['POST'])
+def delete_notification():
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    data = request.get_json()
+    key = data.get('key')
+    if key not in api_keys:
+        print('Sai key')
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Sai key'}), 400
+
+    cursor.execute("SELECT ImagePath FROM Notification WHERE Send=0")
+    rows = cursor.fetchall()
+
+    for row in rows:
+        image_path = row.ImagePath
+        print(f"Đường dẫn của ảnh: {image_path}")
+
+        # Xóa ảnh
+        if os.path.exists(image_path):
+            os.remove(image_path)
+            print(f"Đã xóa ảnh có đường dẫn: {image_path}")
+        else:
+            print(f"Không tìm thấy ảnh có đường dẫn: {image_path}")
+
+        # Xóa hàng dữ liệu trong bảng Notification
+        cursor.execute("DELETE FROM Notification WHERE ImagePath = ?", image_path)
+        conn.commit()
+        
+        msg = f"Đã xóa hàng dữ liệu với ImagePath {image_path}"
+        print(msg)
+    cursor.close()
+    conn.close()
+    return jsonify({'message': 'Đã xóa hết các thông báo chưa Send'}), 200
+
 #---------------------------------------------------------------------------------------------------
 
 @app.route('/api/notification/get-img', methods=['POST'])
@@ -3543,7 +3590,11 @@ def get_all_notifications():
                 'Body': notification.Body,
                 'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
             })
-        
+    
+    cnt_climb = 0
+    cnt_lockpicking = 0
+    cnt_fire = 0
+    cnt_smoke = 0
     for i in notification_list:
         # Trả về trường "Seen" để biết thông báo đã xem chưa
         cursor.execute("SELECT * FROM Seen WHERE ID_Notification = ? AND CustomerID = ?", (i['ID_Notification'], customerid))
@@ -3551,8 +3602,21 @@ def get_all_notifications():
             i['Seen'] = 'True'
         else:
             i['Seen'] = 'False'
-        # Trả về hình ảnh của thông báo nếu có
         
+        if i['Body'] == 'Leo rào':
+            cnt_climb+=1
+        if i['Body'] == 'Mở khóa' or i['Body'] == 'Mở khoá':
+            cnt_lockpicking+=1
+        if i['Body'] == 'Có cháy':
+            cnt_fire+=1
+        if i['Body'] == 'Có khói':
+            cnt_smoke+=1
+    
+    for i in notification_list:
+        i['Climb'] = cnt_climb
+        i['Lockpicking'] = cnt_lockpicking
+        i['Fire'] = cnt_fire
+        i['Smoke'] = cnt_smoke
             
     print(f"Trả về list các thông báo của User {ten_tai_khoan_email_sdt}...")
     cursor.close()
@@ -3861,6 +3925,7 @@ def save_notification():
     anh_base64 = data.get('base64')
     camera_id = data.get('camera_id')
     formatted_time = data.get('formatted_time')
+    send = data.get('send')
     
     print("notification_type:", notification_type, ' - ', type(notification_type))
     print("title:", title, ' - ', type(title))
@@ -3889,7 +3954,7 @@ def save_notification():
     #----------------------------------------------------------------------------------------------
     
     cursor.execute("INSERT INTO Notification (CameraID, Type, Title, Body, Date, ImagePath, Send) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                   (camera_id, notification_type, title, body, current_time, img_path, 0))
+                   (camera_id, notification_type, title, body, current_time, img_path, send))
     conn.commit()
     
     msg = f"Đã lưu thông tin về thông báo vào database"
@@ -4493,7 +4558,15 @@ def get_all_ntf():
         conn.close()
         return jsonify({'message': 'Sai key'}), 400
     
-    cursor.execute(f"SELECT * FROM Notification WHERE Send=0 ORDER BY Date DESC")
+    cursor.execute(f"""SELECT * FROM Notification
+                        WHERE Send = 0
+                        ORDER BY Date DESC
+                        OFFSET (
+                            SELECT IIF(COUNT(*) < 4, 0, COUNT(*) - 4)
+                            FROM Notification
+                            WHERE Send = 0
+                        ) ROWS
+                        FETCH NEXT 4 ROWS ONLY""")
     notifications=cursor.fetchall()
     
     notification_list = []
@@ -4708,6 +4781,56 @@ def fcm_dat123():
     cursor.close()
     conn.close()
     return json.dumps(fcm_list), 200
+
+
+# @app.route('/show_new_ntf', methods=['GET'])
+# def show_images():
+    
+#     conn = connect_to_database()
+#     cursor = conn.cursor()
+    
+#     cursor.execute(f"""SELECT * FROM Notification
+#                         WHERE Send = 0
+#                         ORDER BY Date DESC
+#                         OFFSET (
+#                             SELECT IIF(COUNT(*) < 4, 0, COUNT(*) - 4)
+#                             FROM Notification
+#                             WHERE Send = 0
+#                         ) ROWS
+#                         FETCH NEXT 4 ROWS ONLY""")
+#     notifications=cursor.fetchall()
+    
+#     notification_list = []
+#     for notification in notifications:
+#         notification_list.append({
+#             'ID_Notification': notification.ID_Notification,
+#             'Type': notification.Type,
+#             'Title': notification.Title,
+#             'Body': notification.Body,
+#             'Date': notification.Date.strftime("%d-%m-%Y %Hh%M'%S\""),
+#             'Send': notification.Send, # Thông báo đã gửi (1), chưa gửi (0)
+#             'ImagePath': notification.ImagePath,
+#         })
+
+#     try:
+#         shutil.rmtree('static')
+#     except:
+#         pass
+#     os.makedirs('static')
+
+#     for notification in notification_list:
+#         image_path = notification['ImagePath']
+#         if not os.path.exists(os.path.join('static', image_path.split('/')[1])):
+#             os.makedirs(os.path.join('static', image_path.split('/')[1]))
+#         destination_path = os.path.join('static', image_path.split('/')[1], image_path.split('/')[2])
+#         copyfile(image_path, destination_path)
+        
+#         notification['ImagePath'] = destination_path
+    
+#     images_data = notification_list
+
+#     return render_template('show_new_ntf.html', images_data=images_data)
+
 #########################################################################################################################
 #########################################################################################################################
 if __name__ == '__main__':
